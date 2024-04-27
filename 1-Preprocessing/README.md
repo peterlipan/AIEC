@@ -1,5 +1,7 @@
 # Preprocessing of the AIEC dataset
-The dataset contains the immunostaining images of 396 patients (90 MMRd, 161 NSMP, 95 P53abn, 50 POLEmut). The raw structure of this dataset is as follows:
+## Raw data
+
+The TIF dataset contains the PDL-1 immunostaining images of 396 patients (90 MMRd, 161 NSMP, 95 P53abn, 50 POLEmut). The raw structure of this dataset is as follows:
 
 ```
 AIEC_tiff/
@@ -22,13 +24,33 @@ AIEC_tiff/
 	└──	EC_DAT.xlsx
 ```
 
-Following CLAM (https://github.com/mahmoodlab/CLAM/tree/master), we first segment the tissues into patches, excluding background and holes.
+Modalities in the raw dataset:
 
-天亮，我刚刚和陈老师对了下算法的进度和设计，发现对数据这边有些问题还不太清楚。
+- Immunohistochemistry (IHC) staining images: CD3/CD8/**PD-L1**
+- Biomarkers
+  - Cancer tissues: CK7, Vimentin, ER, PR, p53, Ki-67, CD10, p16, CA125, others
+  - Vascular: CD34 (blood vessels) , D2-40 (lymphatic vessels)
+  - Gene mutation: SPOP, POLE
+  - Gene expression: PMS2, MLH1, MSH2, MSH6, PD-L1, CD3, CD8
+- Diagnosis
+  - Pathological classification: Carcinomas/Carcinosarcomas/...
+  - Reports: pathology, MRI, B-Scan, 
+  - Molecular classification: MMRd, NSMP, P53abn, POLEmut
+  - Grading
+- Prognosis: Survival status (Survived/Died/Censored) and Death date
+- Therapy: Radiation/Chemo
 
-一个是现在的图片数据是免疫组化的扫描，表格数据中包括了多种分子标志物和基因突变信息，现在不清楚能不能从单张图片中看出所有的分子信息，还是说一张免疫组化只针对特定的部分分子标志物
+**TODO:** Transform the TIF images to pyramidal tiffs (ndpi/svs/ometiff) for patch segmentation and pyramidal modeling (https://github.com/mahmoodlab/CLAM/issues/241).
 
-第二个问题是病理医生在评估EC图片的时候，会不会不断地切换放大倍率。比如在低倍镜下发现了可疑区域，需要切换到高倍镜才能确定病变程度。如果有这种逻辑的话，我们可以把金字塔结构的信息加入到模型设计中
+
+
+```sh
+curl -H "Authorization: Bearer ya29.a0Ad52N3-Ngj4C0-ShnSl9mcueyxVGukKWxxvueQw5qLxjLXcGW5ASWXYWHmg5sf92ugTvwU84zx-2KMIXb0t96E9Nxdc3RuPYm0UJ3LPRDN75CAQs8tpgbfiuPqIeR_4842y2si4w21BOEYGCekZ_ug9SZd0VZeO35MOUaCgYKAUUSARISFQHGX2Mimbct1yE0l_mNVazGJWJGfw0171" -C - "https://www.googleapis.com/drive/v3/files/1hE8FHKcL3-qYJXM9JPvyrS76cI69fcrm?alt=media" -o AIEC_tiff
+
+wget --recursive --no-parent --header="Authorization: Bearer ya29.a0Ad52N3_OO3-_vreqLa6ZN0gBO6E8RabXig2abZbMXLr-vv4cpIjUtNgVpp49rwbEpfllPPJynFswJcPYeAX20mHd62-TmR5zmMsvwjQ6q3Nps1s_wCy2zhz6lFcc10Sz82EvGHZYr-TdgyoWpw28vjfs2V3yx79ckIsqaCgYKAcISARISFQHGX2Mi8P6IPfOmVsxkBtCOk-M36g0171" "https://www.googleapis.com/drive/v3/files/1hE8FHKcL3-qYJXM9JPvyrS76cI69fcrm?alt=media"
+
+bypy --processes 16 --downloader aria2 downdir AIEC_202404/AIEC_tiff ./
+```
 
 
 
