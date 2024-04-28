@@ -41,8 +41,3 @@ Modalities in the raw dataset:
 - Therapy: Radiation/Chemo
 
 **TODO:** Transform the TIF images to pyramidal tiffs (ndpi/svs/ometiff) for patch segmentation and pyramidal modeling (https://github.com/mahmoodlab/CLAM/issues/241).
-
-
-
-
-

@@ -1,3 +1,4 @@
+import pathlib
 import numpy as np
 import pandas as pd
 
@@ -92,12 +93,13 @@ class Dataset_All_Bags(Dataset):
 
 	def __init__(self, csv_path):
 		self.df = pd.read_csv(csv_path)
+		self.slide_id = [pathlib.Path(x).stem for x in self.df['slide_id']]
 	
 	def __len__(self):
 		return len(self.df)
 
 	def __getitem__(self, idx):
-		return self.df['slide_id'][idx]
+		return self.slide_id[idx]
 
 
 

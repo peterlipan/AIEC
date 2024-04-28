@@ -27,7 +27,7 @@ class WholeSlideImage(object):
 
         #         self.name = ".".join(path.split("/")[-1].split('.')[:-1])
         self.name = os.path.splitext(os.path.basename(path))[0]
-        self.wsi = openslide.open_slide(path)
+        self.wsi = openslide.OpenSlide(path)
         self.level_downsamples = self._assertLevelDownsamples()
         self.level_dim = self.wsi.level_dimensions
 
@@ -139,7 +139,11 @@ class WholeSlideImage(object):
 
             return foreground_contours, hole_contours
 
+        print("level_dim: ", self.level_dim[seg_level][::-1])
+        print("seg_level: ", seg_level)
         img = np.array(self.wsi.read_region((0, 0), seg_level, self.level_dim[seg_level]))
+
+
         img_hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)  # Convert to HSV space
         img_med = cv2.medianBlur(img_hsv[:, :, 1], mthresh)  # Apply median blurring
 

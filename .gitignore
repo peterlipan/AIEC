@@ -21,3 +21,6 @@ data/
 
 # results
 results/
+
+# checkpoints
+checkpoints/
