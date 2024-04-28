@@ -8,7 +8,7 @@ from utils.transform_utils import get_eval_transforms
 
 def has_CONCH():
     HAS_CONCH = False
-    CONCH_CKPT_PATH = ''
+    CONCH_CKPT_PATH = '/mnt/zhen_chen/AIEC/checkpoints/conch/pytorch_model.bin'
     # check if CONCH_CKPT_PATH is set and conch is installed, catch exception if not
     try:
         from conch.open_clip_custom import create_model_from_pretrained
