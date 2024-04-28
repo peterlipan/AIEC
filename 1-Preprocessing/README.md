@@ -42,14 +42,6 @@ Modalities in the raw dataset:
 
 **TODO:** Transform the TIF images to pyramidal tiffs (ndpi/svs/ometiff) for patch segmentation and pyramidal modeling (https://github.com/mahmoodlab/CLAM/issues/241).
 
-
-
-```sh
-curl -H "Authorization: Bearer ya29.a0Ad52N3-Ngj4C0-ShnSl9mcueyxVGukKWxxvueQw5qLxjLXcGW5ASWXYWHmg5sf92ugTvwU84zx-2KMIXb0t96E9Nxdc3RuPYm0UJ3LPRDN75CAQs8tpgbfiuPqIeR_4842y2si4w21BOEYGCekZ_ug9SZd0VZeO35MOUaCgYKAUUSARISFQHGX2Mimbct1yE0l_mNVazGJWJGfw0171" -C - "https://www.googleapis.com/drive/v3/files/1hE8FHKcL3-qYJXM9JPvyrS76cI69fcrm?alt=media" -o AIEC_tiff
-
-wget --recursive --no-parent --header="Authorization: Bearer ya29.a0Ad52N3_OO3-_vreqLa6ZN0gBO6E8RabXig2abZbMXLr-vv4cpIjUtNgVpp49rwbEpfllPPJynFswJcPYeAX20mHd62-TmR5zmMsvwjQ6q3Nps1s_wCy2zhz6lFcc10Sz82EvGHZYr-TdgyoWpw28vjfs2V3yx79ckIsqaCgYKAcISARISFQHGX2Mi8P6IPfOmVsxkBtCOk-M36g0171" "https://www.googleapis.com/drive/v3/files/1hE8FHKcL3-qYJXM9JPvyrS76cI69fcrm?alt=media"
-
-bypy --processes 16 --downloader aria2 downdir AIEC_202404/AIEC_tiff ./
 ```
 
 
