@@ -1,0 +1,31 @@
+# distributed training
+nodes: 1
+gpus: 2
+nr: 0
+dataparallel: 0
+workers: 8
+visible_gpus: "0,1,2,3"
+
+# Paths
+data_root: "/mnt/zhen_chen/featuresx20_256"
+checkpoints: "./checkpoints"
+
+# Dataset Options
+dataset: "AIEC"
+
+# Model options
+backbone: "Mamba"
+
+# training options
+seed: 42
+batch_size: 2
+epochs: 70
+fold: 0
+
+# optimizer options
+ema_decay: 0.999
+lr: 1.0e-4
+weight_decay: 0.01
+warmup_epochs: 15
+
+# loss options

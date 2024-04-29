@@ -21,7 +21,7 @@ def initialize_weights(module):
 
 
 class MambaMIL(nn.Module):
-    def __init__(self, in_dim, n_classes, dropout, act, survival = False, layer=2, rate=10, type="SRMamba"):
+    def __init__(self, in_dim, n_classes, dropout, act, survival = False, layer=2, rate=10, backbone="SRMamba"):
         super(MambaMIL, self).__init__()
         self._fc1 = [nn.Linear(in_dim, 512)]
         if act.lower() == 'relu':
@@ -36,7 +36,7 @@ class MambaMIL(nn.Module):
         self.layers = nn.ModuleList()
         self.survival = survival
 
-        if type == "SRMamba":
+        if backbone == "SRMamba":
             for _ in range(layer):
                 self.layers.append(
                     nn.Sequential(
@@ -49,7 +49,7 @@ class MambaMIL(nn.Module):
                         ),
                         )
                 )
-        elif type == "Mamba":
+        elif backbone == "Mamba":
             for _ in range(layer):
                 self.layers.append(
                     nn.Sequential(
@@ -62,7 +62,7 @@ class MambaMIL(nn.Module):
                         ),
                         )
                 )
-        elif type == "BiMamba":
+        elif backbone == "BiMamba":
             for _ in range(layer):
                 self.layers.append(
                     nn.Sequential(
@@ -76,7 +76,7 @@ class MambaMIL(nn.Module):
                         )
                 )
         else:
-            raise NotImplementedError("Mamba [{}] is not implemented".format(type))
+            raise NotImplementedError("Mamba [{}] is not implemented".format(backbone))
 
         self.n_classes = n_classes
         self.classifier = nn.Linear(512, self.n_classes)
@@ -86,7 +86,7 @@ class MambaMIL(nn.Module):
             nn.Linear(128, 1)
         )
         self.rate = rate
-        self.type = type
+        self.backbone = backbone
 
         self.apply(initialize_weights)
 
@@ -97,13 +97,13 @@ class MambaMIL(nn.Module):
         
         h = self._fc1(h)  # [B, n, 256]
 
-        if self.type == "SRMamba":
+        if self.backbone == "SRMamba":
             for layer in self.layers:
                 h_ = h
                 h = layer[0](h)
                 h = layer[1](h, rate=self.rate)
                 h = h + h_
-        elif self.type == "Mamba" or self.type == "BiMamba":
+        elif self.backbone == "Mamba" or self.backbone == "BiMamba":
             for layer in self.layers:
                 h_ = h
                 h = layer[0](h)
@@ -115,19 +115,15 @@ class MambaMIL(nn.Module):
         A = torch.transpose(A, 1, 2)
         A = F.softmax(A, dim=-1) # [B, K, n]
         h = torch.bmm(A, h) # [B, K, 512]
-        h = h.squeeze(0)
+        hidden = h.squeeze(0)
 
-        logits = self.classifier(h)  # [B, n_classes]
-        Y_prob = F.softmax(logits, dim=1)
-        Y_hat = torch.topk(logits, 1, dim=1)[1]
-        A_raw = None
-        results_dict = None
+        pred = self.classifier(h)  # [B, n_classes]
         if self.survival:
-            Y_hat = torch.topk(logits, 1, dim = 1)[1]
+            Y_hat = torch.topk(pred, 1, dim = 1)[1]
             hazards = torch.sigmoid(logits)
             S = torch.cumprod(1 - hazards, dim=1)
-            return hazards, S, Y_hat, None, None
-        return logits, Y_prob, Y_hat, A_raw, results_dict
+            return hazards, S, Y_hat
+        return hidden, pred, None
     
     def relocate(self):
         device=torch.device("cuda" if torch.cuda.is_available() else "cpu")
