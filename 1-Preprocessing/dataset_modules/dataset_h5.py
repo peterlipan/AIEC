@@ -93,10 +93,14 @@ class Dataset_All_Bags(Dataset):
 
 	def __init__(self, csv_path):
 		self.df = pd.read_csv(csv_path)
-		self.slide_id = [pathlib.Path(x).stem for x in self.df['slide_id']]
+		slide_id = []
+		for i in range(self.df.shape[0]):
+			if self.df['status'][i] == 'processed':
+				slide_id.append(pathlib.Path(self.df['slide_id'][i]).stem)
+		self.slide_id = slide_id
 	
 	def __len__(self):
-		return len(self.df)
+		return len(self.slide_id)
 
 	def __getitem__(self, idx):
 		return self.slide_id[idx]
