@@ -4,8 +4,8 @@ MambaMIL
 import torch
 import torch.nn as nn
 from mamba_ssm.modules.mamba_simple import Mamba
-from bimamba import BiMamba
-from srmamba import SRMamba
+from .bimamba import BiMamba
+from .srmamba import SRMamba
 import torch.nn.functional as F
 
 
@@ -117,7 +117,7 @@ class MambaMIL(nn.Module):
         h = torch.bmm(A, h) # [B, K, 512]
         hidden = h.squeeze(0)
 
-        pred = self.classifier(h)  # [B, n_classes]
+        pred = self.classifier(hidden)  # [B, n_classes]
         if self.survival:
             Y_hat = torch.topk(pred, 1, dim = 1)[1]
             hazards = torch.sigmoid(logits)

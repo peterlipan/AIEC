@@ -6,9 +6,10 @@ import argparse
 import numpy as np
 import pandas as pd
 from models import MambaMIL
-from dataset import AIECDataset
+from datasets import AIECDataset
 import torch.distributed as dist
 import torch.multiprocessing as mp
+import torch.nn as nn
 from torch.nn.parallel import DataParallel
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DataLoader
@@ -47,7 +48,7 @@ def main(gpu, args, wandb_logger):
         test_csv = csv_file[csv_file['patient_id'].isin(test_patient_idx)]
 
         train_dataset = AIECDataset(args.data_root, train_csv, use_h5=False)
-        test_dataset = AIECDataset(args.data_root, test_csv, use_h5=False)
+        step_per_epoch = len(train_dataset) // (args.batch_size * args.world_size)
 
         # set sampler for parallel training
         if args.world_size > 1 and not args.dataparallel:
@@ -67,7 +68,7 @@ def main(gpu, args, wandb_logger):
             pin_memory=True,
         )
         if rank == 0:
-            test_dataset = TCGADataset(args, data_cv_split, gene_names, split='test')
+            test_dataset = AIECDataset(args.data_root, test_csv, use_h5=False)
             test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False,
             num_workers=args.workers, pin_memory=True)
         else:
@@ -77,13 +78,13 @@ def main(gpu, args, wandb_logger):
 
         num_classes = train_dataset.num_classes
 
-        model = MambaMIL(in_dim=args.feautre_dim, n_classes=num_classes, dropout=args.dropout, 
+        model = MambaMIL(in_dim=args.feature_dim, n_classes=num_classes, dropout=args.dropout, 
         act=args.activation, layer=args.num_layers, backbone=args.backbone)
 
         model.relocate()
 
         optimizer = get_optim(model, args)
-        criteria = nn.CrossEntropyLoss()
+        criteria = nn.CrossEntropyLoss().cuda()
         scheduler = get_cosine_schedule_with_warmup(optimizer, args.warmup_epochs * step_per_epoch, args.epochs * step_per_epoch)
 
         if args.dataparallel:
@@ -95,13 +96,13 @@ def main(gpu, args, wandb_logger):
                 model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
                 model = DDP(model, device_ids=[gpu])
         
-        train(loaders, models, criteria, optimizer, scheduler, args, wandb_logger)
+        train(loaders, model, criteria, optimizer, scheduler, args, wandb_logger)
 
 
 if __name__ == '__main__':
     # args
     parser = argparse.ArgumentParser()
-    yaml_config = yaml_config_hook("./config/configs.yaml")
+    yaml_config = yaml_config_hook("./config.yaml")
     for k, v in yaml_config.items():
         parser.add_argument(f"--{k}", default=v, type=type(v))
 
@@ -109,9 +110,6 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     args.world_size = args.gpus * args.nodes
-
-    # split the dataset
-    generate_splits(args.data_path, args.seed, subset=args.split)
 
     # Master address for distributed data parallel
     os.environ["CUDA_VISIBLE_DEVICES"] = args.visible_gpus
@@ -131,7 +129,7 @@ if __name__ == '__main__':
             config[k] = v
 
         wandb_logger = wandb.init(
-            project="MCL_{:s}".format(args.dataset),
+            project="AIEC_{:s}".format(args.backbone),
             config=config
         )
     else:

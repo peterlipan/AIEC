@@ -1,9 +1,9 @@
 # distributed training
 nodes: 1
-gpus: 2
+gpus: 4
 nr: 0
 dataparallel: 0
-workers: 8
+workers: 4
 visible_gpus: "0,1,2,3"
 
 # Paths
@@ -18,13 +18,13 @@ KFold: 5
 
 # Model options
 backbone: "Mamba"
-dropout: 0.4
+dropout: 0.25
 activation: "gelu"
 num_layers: 2
 
 # training options
 seed: 42
-batch_size: 2
+batch_size: 1
 epochs: 70
 fold: 0
 

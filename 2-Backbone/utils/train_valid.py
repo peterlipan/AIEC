@@ -25,8 +25,7 @@ def train(dataloaders, model, criteria, optimizer, scheduler, args, logger):
         if isinstance(train_loader.sampler, DistributedSampler):
             train_loader.sampler.set_epoch(epoch)
         for i, (features, label) in enumerate(train_loader):
-            features, label = features.cuda(non_blocking=True), label.cuda(non_blocking=True)
-
+            features, label = features.cuda(non_blocking=True), label.cuda(non_blocking=True).long()
             hidden_state, pred, _ = model(features)
 
             # classification loss
@@ -103,10 +102,10 @@ def validate(dataloader, model):
 
     with torch.no_grad():
         for features, label in dataloader:
-            features, label = features.cuda(non_blocking=True), label.cuda(non_blocking=True)
-            _, pred, _ = model(img)
+            features, label = features.cuda(non_blocking=True), label.cuda(non_blocking=True).long()
+            _, pred, _ = model(features)
             pred = F.softmax(pred, dim=1)
-            ground_truth = torch.cat((ground_truth, grade))
+            ground_truth = torch.cat((ground_truth, label))
             predictions = torch.cat((predictions, pred))
 
         acc, f1, auc, ap, bac, sens, spec, prec, mcc, kappa = compute_avg_metrics(ground_truth, predictions, avg='micro')
