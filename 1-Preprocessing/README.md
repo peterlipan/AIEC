@@ -40,4 +40,19 @@ Modalities in the raw dataset:
 - Prognosis: Survival status (Survived/Died/Censored) and Death date
 - Therapy: Radiation/Chemo
 
-**TODO:** Transform the TIF images to pyramidal tiffs (ndpi/svs/ometiff) for patch segmentation and pyramidal modeling (https://github.com/mahmoodlab/CLAM/issues/241).
+<u>**TODO:**</u> Transform the TIF images to pyramidal tiffs (ndpi/svs/ometiff) for patch segmentation and pyramidal modeling (https://github.com/mahmoodlab/CLAM/issues/241).
+
+## Preprocessing
+
+The prepprocessing consists of two steps: Patching and Feature extraction. Following CLAM (https://github.com/mahmoodlab/CLAM), we patchify the tissue region (excluding the background and holdes) into 256x256 patches at 20x magnification as follows:
+
+```bash
+python3 create_patches_fp.py --source /mnt/zhen_chen/AIEC_tiff/MMRd/ --save_dir /mnt/zhen_chen/patchesx20_256/MMRd --patch_size 256 --seg --patch --stitch --no_auto_skip
+```
+
+This will generate three folders and one csv file under the save_dir. The **masks** folder contains the segmentation results (one image per slide). The **patches** folder contains arrays of extracted tissue patches from each slide (one .h5 file per slide, where each entry corresponds to the coordinates of the top-left corner of a patch) The **stitches** folder contains downsampled visualizations of stitched tissue patches (one image per slide) (Optional, not used for downstream tasks) The auto-generated csv file **process_list_autogen.csv** contains a list of all slides processed, along with their segmentation/patching parameters used.
+
+
+
+
+
