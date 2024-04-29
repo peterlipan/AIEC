@@ -54,5 +54,37 @@ This will generate three folders and one csv file under the save_dir. The **mask
 
 
 
+Pre-trained neural networks have been used to extract the morphological features from the segmented patches. An example script is as follows:
 
+```bash
+python3 extract_features_fp.py --data_h5_dir /mnt/zhen_chen/patchesx20_256/MMRd --data_slide_dir /mnt/zhen_chen/AIEC_tiff/MMRd --csv_path /mnt/zhen_chen/patchesx20_256/MMRd/process_list_autogen.csv --feat_dir /mnt/zhen_chen/featuresx20_256/MMRd --batch_size 512 --slide_ext .tif
+```
+
+The above command expects the coordinates .h5 files to be stored under data_h5_dir and a batch size of 512 to extract **1024-dim features** from each tissue patch for each slide and produce tow folders: **h5_files** and **pt_files**. Each .h5 file contains an array of extracted features along with their patch coordinates (note for faster training, a .pt file for each slide is also created for each slide, containing just the patch features). Current version utilized a ResNet-50 pretrained on ImageNet for this step. The final folder structure:
+
+```
+featuresx20_256/
+	├── MMRd
+				├── h5_files # patch-level feautres
+					└── ...
+				└── pt_files # patch-level feautres for faster training
+					└──	...
+	├── NSMP
+				├── h5_files
+					└── ...
+				└── pt_files
+					└──	...
+	├── P53abn
+				├── h5_files
+					└── ...
+				└── pt_files
+					└──	...
+	└── POLEmut
+				├── h5_files
+					└── ...
+				└── pt_files
+					└──	...
+```
+
+**<u>TODO:</u>** Implement UNI and CONCH (ViTs pre-trained on pathology slides) for feature extraction.
 
