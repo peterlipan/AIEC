@@ -8,13 +8,19 @@ visible_gpus: "0,1,2,3"
 
 # Paths
 data_root: "/mnt/zhen_chen/featuresx20_256"
+csv_path: "./aiec_info.csv"
 checkpoints: "./checkpoints"
 
 # Dataset Options
 dataset: "AIEC"
+feature_dim: 1024
+KFold: 5
 
 # Model options
 backbone: "Mamba"
+dropout: 0.4
+activation: "gelu"
+num_layers: 2
 
 # training options
 seed: 42
@@ -23,9 +29,8 @@ epochs: 70
 fold: 0
 
 # optimizer options
+opt: "sgd"
 ema_decay: 0.999
-lr: 1.0e-4
+lr: 1.0e-2
 weight_decay: 0.01
 warmup_epochs: 15
-
-# loss options
