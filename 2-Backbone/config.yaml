@@ -17,7 +17,7 @@ feature_dim: 1024
 KFold: 5
 
 # Model options
-backbone: "Mamba"
+backbone: "SRMamba"
 dropout: 0.25
 activation: "gelu"
 num_layers: 2
@@ -25,12 +25,12 @@ num_layers: 2
 # training options
 seed: 42
 batch_size: 1
-epochs: 70
+epochs: 200
 fold: 0
 
 # optimizer options
-opt: "sgd"
+opt: "adam"
 ema_decay: 0.999
-lr: 1.0e-2
+lr: 2.0e-4
 weight_decay: 0.01
-warmup_epochs: 15
+warmup_epochs: 0

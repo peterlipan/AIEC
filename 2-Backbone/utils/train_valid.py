@@ -46,7 +46,7 @@ def train(dataloaders, model, criteria, optimizer, scheduler, args, logger):
 
             cur_iter += 1
             if args.rank == 0:
-                if cur_iter % 100 == 1:
+                if cur_iter % 50 == 1:
                     cur_lr = optimizer.param_groups[0]['lr']
                     test_acc, test_f1, test_auc, test_ap, test_bac, test_sens, test_spec, test_prec, test_mcc, test_kappa = validate(
                         test_loader, model)

@@ -21,7 +21,7 @@ def initialize_weights(module):
 
 
 class MambaMIL(nn.Module):
-    def __init__(self, in_dim, n_classes, dropout, act='gelu', survival = False, layer=2, rate=10, backbone="SRMamba"):
+    def __init__(self, in_dim, n_classes, dropout, act='gelu', survival=False, layer=2, rate=5, backbone="SRMamba"):
         super(MambaMIL, self).__init__()
         self._fc1 = [nn.Linear(in_dim, 512)]
         if act.lower() == 'relu':
