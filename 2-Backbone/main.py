@@ -129,7 +129,7 @@ if __name__ == '__main__':
             config[k] = v
 
         wandb_logger = wandb.init(
-            project="AIEC_{:s}".format(args.backbone),
+            project="AIEC",
             config=config
         )
     else:

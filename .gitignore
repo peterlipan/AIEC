@@ -4,10 +4,7 @@ __pycache__/
 *$py.class
 
 # wandb logs
-wandb/
-
-# checkpoints
-checkpoints/
+**/wandb
 
 # MAC os
 .DS_Store
@@ -16,11 +13,9 @@ __MACOSX/
 # PyCharm
 **/.idea
 
-# dataset
-data/
 
 # results
 results/
 
 # checkpoints
-checkpoints/
+**/checkpoints

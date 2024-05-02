@@ -20,7 +20,7 @@ KFold: 5
 backbone: "SRMamba"
 dropout: 0.25
 activation: "gelu"
-num_layers: 2
+num_layers: 10
 
 # training options
 seed: 42
