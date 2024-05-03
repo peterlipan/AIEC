@@ -85,8 +85,9 @@ def main(gpu, args, wandb_logger):
 
         optimizer = get_optim(model, args)
         criteria = nn.CrossEntropyLoss().cuda()
-        scheduler = get_cosine_schedule_with_warmup(optimizer, args.warmup_epochs * step_per_epoch, args.epochs * step_per_epoch)
-
+        # scheduler = get_cosine_schedule_with_warmup(optimizer, args.warmup_epochs * step_per_epoch, args.epochs * step_per_epoch)
+        scheduler = None
+        
         if args.dataparallel:
             model = convert_model(model)
             model = DataParallel(model, device_ids=[int(x) for x in args.visible_gpus.split(",")])

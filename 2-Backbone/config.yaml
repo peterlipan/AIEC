@@ -1,10 +1,10 @@
 # distributed training
 nodes: 1
-gpus: 4
+gpus: 8
 nr: 0
 dataparallel: 0
-workers: 4
-visible_gpus: "0,1,2,3"
+workers: 8
+visible_gpus: "0,1,2,3,4,5,6,7"
 
 # Paths
 data_root: "/mnt/zhen_chen/featuresx20_256"
@@ -29,7 +29,7 @@ epochs: 200
 fold: 0
 
 # optimizer options
-opt: "adam"
+opt: "adamw"
 ema_decay: 0.999
 lr: 2.0e-4
 weight_decay: 0.01
