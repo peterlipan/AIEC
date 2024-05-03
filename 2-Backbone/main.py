@@ -78,8 +78,8 @@ def main(gpu, args, wandb_logger):
 
         num_classes = train_dataset.num_classes
 
-        model = MambaMIL(in_dim=args.feature_dim, n_classes=num_classes, dropout=args.dropout, 
-        act=args.activation, layer=args.num_layers, backbone=args.backbone)
+        model = MambaMIL(in_dim=args.feature_dim, n_classes=num_classes, dropout=args.dropout, d_model=args.d_model,
+        act=args.activation, aggregation=args.agg, layer=args.num_layers, backbone=args.backbone)
 
         model.relocate()
 

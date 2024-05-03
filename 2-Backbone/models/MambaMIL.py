@@ -20,10 +20,39 @@ def initialize_weights(module):
             nn.init.constant_(m.weight, 1.0)
 
 
+class Aggregator(nn.Module):
+    def __init__(self, aggregation='avg'):
+        super(Aggregator, self).__init__()
+        self.aggregation = aggregation
+        if self.aggregation == 'avg':
+            self.pooler= nn.AdaptiveAvgPool1d(1)
+        elif self.aggregation == 'attention':
+            self.attn = nn.Sequential(
+            nn.Linear(512, 128),
+            nn.Tanh(),
+            nn.Linear(128, 1)
+            )
+        else:
+            raise NotImplementedError("Aggregation [{}] is not implemented".format(aggregation))
+    
+    def forward(self, x):
+        if self.aggregation == 'avg':
+            x = self.pooler(x.permute(0, 2, 1)).squeeze(-1)
+        elif self.aggregation == 'attention':
+            A = self.attn(x)
+            A = F.softmax(A, dim=-1)
+            x = torch.bmm(A, x)
+            x = x.squeeze(0)
+        elif self.aggregation == 'cls_token':
+            x = x[:, 0, :]
+        return x
+
+
 class MambaMIL(nn.Module):
-    def __init__(self, in_dim, n_classes, dropout, act='gelu', survival=False, layer=2, rate=5, backbone="SRMamba"):
+    def __init__(self, in_dim, n_classes, dropout, d_model=512, act='gelu', aggregation='avg',
+    survival=False, layer=2, rate=5, backbone="SRMamba"):
         super(MambaMIL, self).__init__()
-        self._fc1 = [nn.Linear(in_dim, 512)]
+        self._fc1 = [nn.Linear(in_dim, d_model)]
         if act.lower() == 'relu':
             self._fc1 += [nn.ReLU()]
         elif act.lower() == 'gelu':
@@ -32,17 +61,19 @@ class MambaMIL(nn.Module):
             self._fc1 += [nn.Dropout(dropout)]
 
         self._fc1 = nn.Sequential(*self._fc1)
-        self.norm = nn.LayerNorm(512)
+        self.norm = nn.LayerNorm(d_model)
         self.layers = nn.ModuleList()
         self.survival = survival
+        if aggregation == 'cls_token':
+            self.cls_token = nn.Parameter(torch.randn(1, 1, d_model))
 
         if backbone == "SRMamba":
             for _ in range(layer):
                 self.layers.append(
                     nn.Sequential(
-                        nn.LayerNorm(512),
+                        nn.LayerNorm(d_model),
                         SRMamba(
-                            d_model=512,
+                            d_model=d_model,
                             d_state=16,  
                             d_conv=4,    
                             expand=2,
@@ -53,9 +84,9 @@ class MambaMIL(nn.Module):
             for _ in range(layer):
                 self.layers.append(
                     nn.Sequential(
-                        nn.LayerNorm(512),
+                        nn.LayerNorm(d_model),
                         Mamba(
-                            d_model=512,
+                            d_model=d_model,
                             d_state=16,  
                             d_conv=4,    
                             expand=2,
@@ -66,9 +97,9 @@ class MambaMIL(nn.Module):
             for _ in range(layer):
                 self.layers.append(
                     nn.Sequential(
-                        nn.LayerNorm(512),
+                        nn.LayerNorm(d_model),
                         BiMamba(
-                            d_model=512,
+                            d_model=d_model,
                             d_state=16,  
                             d_conv=4,    
                             expand=2,
@@ -79,12 +110,8 @@ class MambaMIL(nn.Module):
             raise NotImplementedError("Mamba [{}] is not implemented".format(backbone))
 
         self.n_classes = n_classes
-        self.classifier = nn.Linear(512, self.n_classes)
-        self.attention = nn.Sequential(
-            nn.Linear(512, 128),
-            nn.Tanh(),
-            nn.Linear(128, 1)
-        )
+        self.classifier = nn.Linear(d_model, self.n_classes)
+        self.aggregate = Aggregator(aggregation)
         self.rate = rate
         self.backbone = backbone
 
@@ -95,7 +122,11 @@ class MambaMIL(nn.Module):
             x = x.expand(1, -1, -1)
         h = x.float()  # [B, n, 1024]
         
-        h = self._fc1(h)  # [B, n, 256]
+        h = self._fc1(h)  # [B, n, d_model]
+
+        if hasattr(self, 'cls_token'):
+            cls_token = self.cls_token.expand(h.size(0), -1, -1)
+            h = torch.cat((cls_token, h), dim=1)
 
         if self.backbone == "SRMamba":
             for layer in self.layers:
@@ -111,11 +142,7 @@ class MambaMIL(nn.Module):
                 h = h + h_
 
         h = self.norm(h)
-        A = self.attention(h) # [B, n, K]
-        A = torch.transpose(A, 1, 2)
-        A = F.softmax(A, dim=-1) # [B, K, n]
-        h = torch.bmm(A, h) # [B, K, 512]
-        hidden = h.squeeze(0)
+        hidden = self.aggregate(h)
 
         pred = self.classifier(hidden)  # [B, n_classes]
         if self.survival:
@@ -130,6 +157,6 @@ class MambaMIL(nn.Module):
         self._fc1 = self._fc1.to(device)
         self.layers  = self.layers.to(device)
         
-        self.attention = self.attention.to(device)
+        self.aggregate = self.aggregate.to(device)
         self.norm = self.norm.to(device)
         self.classifier = self.classifier.to(device)
