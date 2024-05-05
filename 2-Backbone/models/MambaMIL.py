@@ -32,6 +32,8 @@ class Aggregator(nn.Module):
             nn.Tanh(),
             nn.Linear(128, 1)
             )
+        elif self.aggregation == 'cls_token':
+            pass
         else:
             raise NotImplementedError("Aggregation [{}] is not implemented".format(aggregation))
     

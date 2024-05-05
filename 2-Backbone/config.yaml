@@ -22,7 +22,7 @@ dropout: 0.25
 activation: "gelu"
 num_layers: 10
 d_model: 512
-agg: 'avg'
+agg: 'attention'
 
 # training options
 seed: 42
@@ -35,4 +35,4 @@ opt: "adamw"
 ema_decay: 0.999
 lr: 2.0e-4
 weight_decay: 0.01
-warmup_epochs: 0
+warmup_epochs: 10

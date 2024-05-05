@@ -81,12 +81,11 @@ def main(gpu, args, wandb_logger):
         model = MambaMIL(in_dim=args.feature_dim, n_classes=num_classes, dropout=args.dropout, d_model=args.d_model,
         act=args.activation, aggregation=args.agg, layer=args.num_layers, backbone=args.backbone)
 
-        model.relocate()
+        model = model.cuda()
 
         optimizer = get_optim(model, args)
         criteria = nn.CrossEntropyLoss().cuda()
-        # scheduler = get_cosine_schedule_with_warmup(optimizer, args.warmup_epochs * step_per_epoch, args.epochs * step_per_epoch)
-        scheduler = None
+        scheduler = get_cosine_schedule_with_warmup(optimizer, args.warmup_epochs * step_per_epoch, args.epochs * step_per_epoch)
         
         if args.dataparallel:
             model = convert_model(model)
