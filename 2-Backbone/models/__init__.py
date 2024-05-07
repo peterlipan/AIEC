@@ -1,1 +1,1 @@
-from .MambaMIL import MambaMIL
+from .create_model import create_model

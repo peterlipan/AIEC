@@ -24,12 +24,13 @@ def train(dataloaders, model, criteria, optimizer, scheduler, args, logger):
     for epoch in range(args.epochs):
         if isinstance(train_loader.sampler, DistributedSampler):
             train_loader.sampler.set_epoch(epoch)
-        for i, (features, label) in enumerate(train_loader):
-            features, label = features.cuda(non_blocking=True), label.cuda(non_blocking=True).long()
-            hidden_state, pred, _ = model(features)
+        for i, (img, label) in enumerate(train_loader):
+            img, label = img.cuda(non_blocking=True), label.cuda(non_blocking=True).long()
+            outputs = model(img)
+            features, logits = outputs.features, outputs.logits
 
             # classification loss
-            loss = criteria(pred, label)
+            loss = criteria(logits, label)
 
             if args.rank == 0:
                 train_loss = loss.item()
@@ -101,10 +102,11 @@ def validate(dataloader, model):
     predictions = torch.Tensor().cuda()
 
     with torch.no_grad():
-        for features, label in dataloader:
-            features, label = features.cuda(non_blocking=True), label.cuda(non_blocking=True).long()
-            _, pred, _ = model(features)
-            pred = F.softmax(pred, dim=1)
+        for img, label in dataloader:
+            img, label = img.cuda(non_blocking=True), label.cuda(non_blocking=True).long()
+            outputs = model(img)
+            logits = outputs.logits
+            pred = F.softmax(logits, dim=1)
             ground_truth = torch.cat((ground_truth, label))
             predictions = torch.cat((predictions, pred))
 
