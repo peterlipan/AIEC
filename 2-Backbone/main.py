@@ -14,8 +14,7 @@ from torch.nn.parallel import DataParallel
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DataLoader
 from transformers.optimization import get_cosine_schedule_with_warmup
-from utils import yaml_config_hook, train, get_optim
-import warnings
+from utils import yaml_config_hook, train, get_optim, convert_model
 from sklearn.model_selection import KFold
 
 

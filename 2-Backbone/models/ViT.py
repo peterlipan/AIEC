@@ -69,9 +69,9 @@ class ViTEmbeddings(nn.Module):
     Construct the CLS token, position and patch embeddings. Optionally, also the mask token.
     """
 
-    def __init__(self, config: ViTConfig, use_mask_token: bool = False, use_cls_token: bool = False. use_patch_embeddings: bool = True) -> None:
+    def __init__(self, config: ViTConfig, use_mask_token: bool = False,
+                 use_cls_token: bool = False, use_patch_embeddings: bool = True) -> None:
         super().__init__()
-
         self.cls_token = nn.Parameter(torch.randn(1, 1, config.hidden_size)) if use_cls_token else None
         self.mask_token = nn.Parameter(torch.zeros(1, 1, config.hidden_size)) if use_mask_token else None
         self.patch_embeddings = ViTPatchEmbeddings(config) if use_patch_embeddings else None
