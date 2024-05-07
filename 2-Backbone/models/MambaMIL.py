@@ -6,7 +6,7 @@ import torch.nn as nn
 from mamba_ssm.modules.mamba_simple import Mamba
 from .bimamba import BiMamba
 from .srmamba import SRMamba
-from utils import ModelOutputs
+from utils import ModelOutputs, Aggregator
 import torch.nn.functional as F
 
 
@@ -19,36 +19,6 @@ def initialize_weights(module):
         if isinstance(m, nn.LayerNorm):
             nn.init.constant_(m.bias, 0)
             nn.init.constant_(m.weight, 1.0)
-
-
-class Aggregator(nn.Module):
-    def __init__(self, aggregation='avg'):
-        super(Aggregator, self).__init__()
-        self.aggregation = aggregation
-        if self.aggregation == 'avg':
-            self.pooler= nn.AdaptiveAvgPool1d(1)
-        elif self.aggregation == 'attention':
-            self.attn = nn.Sequential(
-            nn.Linear(512, 128),
-            nn.Tanh(),
-            nn.Linear(128, 1)
-            )
-        elif self.aggregation == 'cls_token':
-            pass
-        else:
-            raise NotImplementedError("Aggregation [{}] is not implemented".format(aggregation))
-    
-    def forward(self, x):
-        if self.aggregation == 'avg':
-            x = self.pooler(x.permute(0, 2, 1)).squeeze(-1)
-        elif self.aggregation == 'attention':
-            A = self.attn(x)
-            A = F.softmax(A, dim=-1)
-            x = torch.bmm(A, x)
-            x = x.squeeze(0)
-        elif self.aggregation == 'cls_token':
-            x = x[:, 0, :]
-        return x
 
 
 class MambaMIL(nn.Module):

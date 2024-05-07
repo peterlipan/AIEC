@@ -74,7 +74,8 @@ class ViTEmbeddings(nn.Module):
         super().__init__()
         self.cls_token = nn.Parameter(torch.randn(1, 1, config.hidden_size)) if use_cls_token else None
         self.mask_token = nn.Parameter(torch.zeros(1, 1, config.hidden_size)) if use_mask_token else None
-        self.patch_embeddings = ViTPatchEmbeddings(config) if use_patch_embeddings else None
+        self.use_patch_embeddings = use_patch_embeddings
+        self.patch_embeddings = ViTPatchEmbeddings(config)
         num_patches = self.patch_embeddings.num_patches
         addition = 1 if use_cls_token else 0
         self.position_embeddings = nn.Parameter(torch.randn(1, num_patches + addition, config.hidden_size))
@@ -92,7 +93,7 @@ class ViTEmbeddings(nn.Module):
 
         num_patches = embeddings.shape[1] - 1
         num_positions = self.position_embeddings.shape[1] - 1
-        if num_patches == num_positions and height == width:
+        if num_patches == num_positions:
             return self.position_embeddings
         class_pos_embed = self.position_embeddings[:, 0]
         patch_pos_embed = self.position_embeddings[:, 1:]
@@ -121,7 +122,7 @@ class ViTEmbeddings(nn.Module):
         interpolate_pos_encoding: bool = False,
     ) -> torch.Tensor:
 
-        if self.patch_embeddings is not None:
+        if self.use_patch_embeddings:
             batch_size, num_channels, height, width = pixel_values.shape
             embeddings = self.patch_embeddings(pixel_values, interpolate_pos_encoding=interpolate_pos_encoding)
         else:
@@ -144,7 +145,7 @@ class ViTEmbeddings(nn.Module):
         if interpolate_pos_encoding:
             embeddings = embeddings + self.interpolate_pos_encoding(embeddings, height, width)
         else:
-            embeddings = embeddings + self.position_embeddings
+            embeddings = embeddings
 
         embeddings = self.dropout(embeddings)
 

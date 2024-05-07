@@ -1,10 +1,10 @@
 # distributed training
 nodes: 1
-gpus: 8
+gpus: 2
 nr: 0
 dataparallel: 0
 workers: 8
-visible_gpus: "0,1,2,3,4,5,6,7"
+visible_gpus: "6,7"
 
 # Paths
 data_root: "/mnt/zhen_chen/featuresx20_256"
@@ -17,13 +17,14 @@ feature_dim: 1024
 KFold: 5
 
 # Model options
-backbone: "ViT"
+backbone: "Mamba"
 dropout: 0.25
 activation: "gelu"
-num_layers: 10
-d_model: 512
-agg: 'attention'
-pretrained: "WinKawaks/vit-tiny-patch16-224"
+num_layers: 2
+num_heads: 4
+d_model: 256
+agg: 'avg'
+pretrained: ""
 
 # training options
 seed: 42

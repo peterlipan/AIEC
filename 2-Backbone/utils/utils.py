@@ -1,4 +1,5 @@
 import torch
+from torch import nn
 import torch.optim as optim
 from dataclasses import dataclass
 from typing import Optional, Tuple
@@ -15,6 +16,36 @@ def get_optim(model, args):
     else:
         raise NotImplementedError
     return optimizer
+
+
+class Aggregator(nn.Module):
+    def __init__(self, n_features=None, aggregation='avg'):
+        super(Aggregator, self).__init__()
+        self.aggregation = aggregation
+        if self.aggregation == 'avg':
+            self.pooler= nn.AdaptiveAvgPool1d(1)
+        elif self.aggregation == 'attention':
+            self.attn = nn.Sequential(
+            nn.Linear(n_features, n_features//2),
+            nn.Tanh(),
+            nn.Linear(n_features//2, 1)
+            )
+        elif self.aggregation == 'cls_token':
+            pass
+        else:
+            raise NotImplementedError("Aggregation [{}] is not implemented".format(aggregation))
+    
+    def forward(self, x):
+        if self.aggregation == 'avg':
+            x = self.pooler(x.permute(0, 2, 1)).squeeze(-1)
+        elif self.aggregation == 'attention':
+            A = self.attn(x)
+            A = F.softmax(A, dim=-1)
+            x = torch.bmm(A, x)
+            x = x.squeeze(0)
+        elif self.aggregation == 'cls_token':
+            x = x[:, 0, :]
+        return x
 
 
 @dataclass
