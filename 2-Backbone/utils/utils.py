@@ -1,4 +1,6 @@
+import torch
 import torch.optim as optim
+from dataclasses import dataclass
 from typing import Optional, Tuple
 from transformers.modeling_outputs import ModelOutput
 
@@ -15,6 +17,7 @@ def get_optim(model, args):
 	return optimizer
 
 
+@dataclass
 class ModelOutputs(ModelOutput):
     """
     Base class for outputs of image classification models.
@@ -36,6 +39,6 @@ class ModelOutputs(ModelOutput):
             heads.
     """
 	features: torch.FloatTensor = None
-    logits: torch.FloatTensor = None
-    hidden_states: Optional[Tuple[torch.FloatTensor, ...]] = None
-    attentions: Optional[Tuple[torch.FloatTensor, ...]] = None
+	logits: torch.FloatTensor = None
+	hidden_states: Optional[Tuple[torch.FloatTensor, ...]] = None
+	attentions: Optional[Tuple[torch.FloatTensor, ...]] = None
