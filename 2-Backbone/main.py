@@ -5,7 +5,7 @@ import pickle
 import argparse
 import numpy as np
 import pandas as pd
-from models import MambaMIL
+from models import create_model
 from datasets import AIECDataset
 import torch.distributed as dist
 import torch.multiprocessing as mp
@@ -75,11 +75,9 @@ def main(gpu, args, wandb_logger):
             test_loader = None
 
         loaders = (train_loader, test_loader)
+        args.num_classes = train_dataset.num_classes
 
-        num_classes = train_dataset.num_classes
-
-        model = MambaMIL(in_dim=args.feature_dim, n_classes=num_classes, dropout=args.dropout, d_model=args.d_model,
-        act=args.activation, aggregation=args.agg, layer=args.num_layers, backbone=args.backbone)
+        model = create_model(args)
 
         model = model.cuda()
 

@@ -6,6 +6,7 @@ import torch.nn as nn
 from mamba_ssm.modules.mamba_simple import Mamba
 from .bimamba import BiMamba
 from .srmamba import SRMamba
+from utils import ModelOutputs
 import torch.nn.functional as F
 
 
@@ -151,8 +152,8 @@ class MambaMIL(nn.Module):
             Y_hat = torch.topk(pred, 1, dim = 1)[1]
             hazards = torch.sigmoid(logits)
             S = torch.cumprod(1 - hazards, dim=1)
-            return hazards, S, Y_hat
-        return hidden, pred, None
+            return ModelOutputs(features=hidden, logits=S)
+        return ModelOutputs(features=hidden, logits=pred, hidden_states=h)
     
     def relocate(self):
         device=torch.device("cuda" if torch.cuda.is_available() else "cpu")

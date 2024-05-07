@@ -17,12 +17,13 @@ feature_dim: 1024
 KFold: 5
 
 # Model options
-backbone: "Mamba"
+backbone: "ViT"
 dropout: 0.25
 activation: "gelu"
 num_layers: 10
 d_model: 512
 agg: 'attention'
+pretrained: "WinKawaks/vit-tiny-patch16-224"
 
 # training options
 seed: 42
