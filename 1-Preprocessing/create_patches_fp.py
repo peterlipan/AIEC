@@ -158,7 +158,6 @@ def seg_and_patch(source, save_dir, patch_save_dir, mask_save_dir, stitch_save_d
                 df.loc[idx, 'status'] = 'Failed'
                 continue
 
-
             else:
                 wsi = WSI_object.getOpenSlide()
                 best_level = wsi.get_best_level_for_downsample(20)

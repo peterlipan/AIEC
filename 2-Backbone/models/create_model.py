@@ -11,7 +11,7 @@ def create_model(args):
     if 'Mamba' in args.backbone:
         model = MambaMIL(in_dim=args.feature_dim, n_classes=args.num_classes, dropout=args.dropout,
                          d_model=args.d_model,
-                         act=args.activation, aggregation=args.agg, layer=args.num_layers, backbone=args.backbone)
+                         act=args.activation, aggregation=args.agg, layer=args.num_layers, rate=args.rate, backbone=args.backbone)
     elif args.backbone == 'ViT':
         config = ViTConfig().from_pretrained(args.pretrained) if args.pretrained else ViTConfig()
         config.hidden_size = args.feature_dim
