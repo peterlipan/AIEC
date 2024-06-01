@@ -9,7 +9,7 @@ import numpy as np
 class WholeSlideImage(object):
     def __init__(self, src, dst, patch_size=512, base_downsample=1, downsample_factor=4, num_levels=3,
                  use_otsu=True, sthresh=20, sthresh_up=255, mthresh=7, padding=True, visualize=True,
-                 visualize_width=1024):
+                 visualize_width=1024, skip=True):
         self.src = src
         self.dst = dst
         self.patch_size = patch_size
@@ -34,6 +34,7 @@ class WholeSlideImage(object):
         self.padding = padding
         self.visualize = visualize
         self.visualize_width = visualize_width
+        self.skip = skip
         self.palette = [(173, 216, 230, 255), (255, 182, 193, 255), (152, 251, 152, 255), (230, 230, 250, 255),
                         (255, 255, 0, 255), (255, 165, 0, 255), (255, 0, 255, 255), (64, 224, 208, 255),
                         (168, 168, 120, 255), (210, 105, 30, 255), (255, 199, 0, 255), (138, 54, 15, 255)]
@@ -51,7 +52,7 @@ class WholeSlideImage(object):
 
         return level_downsamples
 
-    def _visualize_grid(self, img, asset_dict):
+    def _visualize_grid(self, img, asset_dict, stop_x, stop_y):
         save_path = os.path.join(self.dst, 'visualize', f'{self.wsi_name}.png')
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
         height, width, _ = img.shape
@@ -60,20 +61,20 @@ class WholeSlideImage(object):
         resized_height, resized_width, _ = resized_img.shape
 
         for level in range(self.num_levels):
-            grid_x, grid_y = asset_dict[f'level_{level}'][:, 0], asset_dict[f'level_{level}'][:, 1]
-            scaled_grid_x = np.int(grid_x[0] / width * resized_width)
-            scaled_grid_y = np.int(grid_y[0] / height * resized_height)
+            grid_x, grid_y = asset_dict[f'level_{level}'][:, :, 0], asset_dict[f'level_{level}'][:, :, 1]
+            scaled_grid_x = grid_x[:, 0] / width * resized_width
+            scaled_grid_y = grid_y[0] / height * resized_height
 
             for x in scaled_grid_x:
-                cv2.line(resized_img, (x, 0), (x, resized_height-1), self.palette[level], 1 * 2 ** level)
+                cv2.line(resized_img, (int(x), 0), (int(x), stop_y-1), self.palette[level], 1 * 2 ** level)
 
             for y in scaled_grid_y:
-                cv2.line(resized_img, (0, y), (resized_width-1, y), self.palette[level], 1 * 2 ** level)
+                cv2.line(resized_img, (0, int(y)), (stop_x-1, int(y)), self.palette[level], 1 * 2 ** level)
 
         cv2.imwrite(save_path, resized_img)
 
     @staticmethod
-    def save_hdf5(output_path, asset_dict, attr_dict=None, mode='a'):
+    def save_hdf5(output_path, asset_dict, attr_dict, mode='a'):
         file = h5py.File(output_path, mode)
         for key, val in asset_dict.items():
             data_shape = val.shape
@@ -84,19 +85,21 @@ class WholeSlideImage(object):
                 dset = file.create_dataset(key, shape=data_shape, maxshape=maxshape, chunks=chunk_shape,
                                            dtype=data_type)
                 dset[:] = val
-                if attr_dict is not None:
-                    if key in attr_dict.keys():
-                        for attr_key, attr_val in attr_dict[key].items():
-                            dset.attrs[attr_key] = attr_val
             else:
                 dset = file[key]
                 dset.resize(len(dset) + data_shape[0], axis=0)
                 dset[-data_shape[0]:] = val
+        for key, val in attr_dict.items():
+            file.attrs[key] = val
         file.close()
         return output_path
 
     def multi_level_segment(self):
         h5_path = os.path.join(self.dst, 'patches', f'{self.wsi_name}.h5')
+        if os.path.exists(h5_path) and self.skip:
+            print(f'\n{self.wsi_name} already processed. Skipping...')
+            return
+        os.makedirs(os.path.dirname(h5_path), exist_ok=True)
         img = np.array(self.wsi.read_region((0, 0), self.base_level, self.base_dimensions))
         img_hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
         img_med = cv2.medianBlur(img_hsv[:, :, 1], self.mthresh)
@@ -134,7 +137,7 @@ class WholeSlideImage(object):
             asset_dict[f'level_{i}'] = np.stack([x_coord, y_coord], axis=-1)
 
         if self.visualize:
-            self._visualize_grid(img, asset_dict)
+            self._visualize_grid(img, asset_dict, stop_x, stop_y)
 
         attr_dict = {'base_level': self.base_level, 'base_dimensions': self.base_dimensions,
                      'base_downsample': self.base_downsample, 'padding': self.padding,
@@ -142,4 +145,5 @@ class WholeSlideImage(object):
                      'num_levels': self.num_levels}
 
         assert asset_dict, "Asset dictionary is empty"
+
         self.save_hdf5(h5_path, asset_dict, attr_dict, mode='w')
