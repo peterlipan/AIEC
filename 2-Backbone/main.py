@@ -6,7 +6,6 @@ import argparse
 import numpy as np
 import pandas as pd
 from models import create_model
-from datasets import AIECDataset
 import torch.distributed as dist
 import torch.multiprocessing as mp
 import torch.nn as nn
@@ -16,6 +15,7 @@ from torch.utils.data import DataLoader
 from transformers.optimization import get_cosine_schedule_with_warmup
 from utils import yaml_config_hook, train, get_optim, convert_model
 from sklearn.model_selection import KFold
+from datasets import AIECPyramidDataset, get_train_transforms, get_test_transforms
 
 
 def main(gpu, args, wandb_logger):
@@ -33,6 +33,9 @@ def main(gpu, args, wandb_logger):
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
 
+    train_transforms = get_train_transforms(num_levels=args.num_levels, downsample_factor=args.downsample_factor)
+    test_transforms = get_test_transforms(num_levels=args.num_levels, downsample_factor=args.downsample_factor)
+
     # load data file
     csv_file = pd.read_csv(args.csv_path)
     kf = KFold(n_splits=args.KFold, shuffle=True, random_state=args.seed)
@@ -46,7 +49,7 @@ def main(gpu, args, wandb_logger):
         train_csv = csv_file[csv_file['patient_id'].isin(train_patient_idx)]
         test_csv = csv_file[csv_file['patient_id'].isin(test_patient_idx)]
 
-        train_dataset = AIECDataset(args.data_root, train_csv, use_h5=False)
+        train_dataset = AIECPyramidDataset(args.data_root, train_csv, use_h5=False, transforms=train_transforms)
         step_per_epoch = len(train_dataset) // (args.batch_size * args.world_size)
 
         # set sampler for parallel training
@@ -67,7 +70,7 @@ def main(gpu, args, wandb_logger):
             pin_memory=True,
         )
         if rank == 0:
-            test_dataset = AIECDataset(args.data_root, test_csv, use_h5=False)
+            test_dataset = AIECPyramidDataset(args.data_root, test_csv, use_h5=False, transforms=test_transforms)
             test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False,
             num_workers=args.workers, pin_memory=True)
         else:

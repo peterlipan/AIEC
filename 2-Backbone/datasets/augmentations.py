@@ -256,7 +256,7 @@ class DepthFirstReadout(AbstractReadout):
     
     def _readout_func(self, data):
         # drop the pseudo root node
-        return torch.Tensor([node.data for node in PreOrderIter(data)][1:])
+        return torch.stack([node.data for node in PreOrderIter(data)][1:])
 
 
 class BreadthFirstReadout(AbstractReadout):
@@ -265,7 +265,7 @@ class BreadthFirstReadout(AbstractReadout):
     
     def _readout_func(self, data):
         # drop the pseudo root node
-        return torch.Tensor([node.data for node in LevelOrderIter(data)][1:])
+        return torch.stack([node.data for node in LevelOrderIter(data)][1:])
                 
 
 class OneOf(object):
@@ -310,7 +310,7 @@ def get_train_transforms(num_levels, downsample_factor):
 
 def get_test_transforms(num_levels, downsample_factor):
     return Compose([
-        HorizontalRasterScan(num_levels, downsample_factor),
+        HorizontalRasterScan(num_levels, downsample_factor, p_i=0, p_j=0),
         DepthFirstReadout()
     ])
 

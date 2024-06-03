@@ -7,7 +7,7 @@ workers: 8
 visible_gpus: "0,1,2,3,4,5,6,7"
 
 # Paths
-data_root: "/mnt/zhen_chen/featuresx20_256"
+data_root: "/mnt/zhen_chen/pyramid_features"
 csv_path: "./aiec_info.csv"
 checkpoints: "./checkpoints"
 
@@ -15,12 +15,14 @@ checkpoints: "./checkpoints"
 dataset: "AIEC"
 feature_dim: 1024
 KFold: 5
+num_levels: 3
+downsample_factor: 4
 
 # Model options
-backbone: "Transformer"
+backbone: "Mamba"
 dropout: 0.25
 activation: "gelu"
-num_layers: 1
+num_layers: 2
 num_heads: 4
 d_model: 256
 agg: 'avg'
