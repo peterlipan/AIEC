@@ -80,7 +80,6 @@ def has_UNI():
     return HAS_UNI, UNI_CKPT_PATH
 
 def get_encoder(model_name, target_img_size=512):
-    print('loading model checkpoint')
     if model_name == 'resnet50_trunc':
         model = TimmCNNEncoder()
     elif model_name == 'uni_v1':
@@ -100,10 +99,9 @@ def get_encoder(model_name, target_img_size=512):
     else:
         raise NotImplementedError('model {} not implemented'.format(model_name))
     
-    print(model)
     constants = MODEL2CONSTANTS[model_name]
     img_transforms = transforms.Compose([
-        transform.Resize(target_img_size),
+        transforms.Resize(target_img_size),
         transforms.ToTensor(),
         transforms.Normalize(mean=constants['mean'], std=constants['std'])
     ])

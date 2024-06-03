@@ -10,13 +10,13 @@ if __name__ == '__main__':
     groups = ['MMRd', 'NSMP', 'P53abn', 'POLEmut']
     df = pd.DataFrame(columns=['patient_id', 'slide_id', 'num_patches', 'diagnosis'])
     for item in groups:
-        subpath = os.path.join('/mnt/zhen_chen/featuresx20_256', item, 'pt_files')
+        subpath = os.path.join('/mnt/zhen_chen/pyramid_features', item, 'pt_files')
         filenames = [f for f in os.listdir(subpath) if f.endswith('.pt')]
         slide_idx = [pathlib.Path(f).stem for f in filenames]
-        num_pathces = [torch.load(os.path.join(subpath, f)).shape[0] for f in filenames]
+        num_levels = [len(torch.load(os.path.join(subpath, f))) for f in filenames]
         # take the slide_idx as patient_id
         patient_id = slide_idx
         diagnosis = [item] * len(slide_idx)
-        df = df._append(pd.DataFrame({'patient_id': patient_id, 'slide_id': slide_idx, 'num_patches': num_pathces,
+        df = df._append(pd.DataFrame({'patient_id': patient_id, 'slide_id': slide_idx, 'num_levels': num_levels,
         'diagnosis': diagnosis}))
     df.to_csv('/mnt/zhen_chen/AIEC/2-Backbone/aiec_info.csv', index=False)
