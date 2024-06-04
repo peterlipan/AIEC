@@ -1,7 +1,7 @@
 import torch
 import random
 import numpy as np
-from anytree import AnyNode, PreOrderIter, LevelOrderIter
+from anytree import AnyNode, PreOrderIter, LevelOrderIter, RenderTree
 
 
 class AbstractScan(object):
@@ -324,8 +324,13 @@ if __name__ == '__main__':
 
     for i in range(num_levels):
         data[f'level_{i}'] = torch.randn(shapes[i])
+        print(f'level_{i} ', f'shape: {shapes[i]}')
     
-    scan = VerticalZigzagScan(num_levels, downsample_factor, p_i=1, p_j=1)
+    scan = VerticalZigzagScan(num_levels=3, downsample_factor=3, p_i=0, p_j=0)
     root = scan(data)
+    # Depth first traversal
     for node in PreOrderIter(root):
         print(f'level{node.level}', node.i, node.j)
+    
+    print('---------------------------------')
+    print(RenderTree(root))
