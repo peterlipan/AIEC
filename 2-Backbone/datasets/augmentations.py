@@ -52,12 +52,12 @@ class HorizontalRasterScan(AbstractScan):
             max_child_i = self.data[f'level_{child_level}'].shape[0]
             max_child_j = self.data[f'level_{child_level}'].shape[1]
 
-        range_i = range(min_child_i, max_child_i)
-        range_j = range(min_child_j, max_child_j)
+        range_i = list(range(min_child_i, max_child_i))
+        range_j = list(range(min_child_j, max_child_j))
         if self.reverse_i:
-            range_i = reversed(range_i)
+            range_i = range_i[::-1]
         if self.reverse_j:
-            range_j = reversed(range_j)
+            range_j = range_j[::-1]
 
         # if the img is the parent of leaves, dirrectly add the leaves as children and terminate recursion
         if cur_level == 1:
@@ -100,12 +100,12 @@ class VerticalRasterScan(AbstractScan):
                 max_child_i = self.data[f'level_{child_level}'].shape[0]
                 max_child_j = self.data[f'level_{child_level}'].shape[1]
     
-            range_i = range(min_child_i, max_child_i)
-            range_j = range(min_child_j, max_child_j)
+            range_i = list(range(min_child_i, max_child_i))
+            range_j = list(range(min_child_j, max_child_j))
             if self.reverse_i:
-                range_i = reversed(range_i)
+                range_i = range_i[::-1]
             if self.reverse_j:
-                range_j = reversed(range_j)
+                range_j = range_j[::-1]
     
             # if the img is the parent of leaves, dirrectly add the leaves as children and terminate recursion
             if cur_level == 1:
@@ -147,8 +147,7 @@ class HorizontalZigzagScan(AbstractScan):
             if cur_level == self.num_levels:
                 max_child_i = self.data[f'level_{child_level}'].shape[0]
                 max_child_j = self.data[f'level_{child_level}'].shape[1]
-            # we need to reverse the range for two times which will encounter error
-            # transform to list
+
             range_i = list(range(min_child_i, max_child_i))
             range_j = list(range(min_child_j, max_child_j))
             if self.reverse_i:
@@ -204,8 +203,7 @@ class VerticalZigzagScan(AbstractScan):
         if cur_level == self.num_levels:
             max_child_i = self.data[f'level_{child_level}'].shape[0]
             max_child_j = self.data[f'level_{child_level}'].shape[1]
-        # we need to reverse the range for two times which will encounter error
-        # transform to list
+
         range_i = list(range(min_child_i, max_child_i))
         range_j = list(range(min_child_j, max_child_j))
         if self.reverse_i:
@@ -315,18 +313,34 @@ def get_test_transforms(num_levels, downsample_factor):
     ])
 
 
+def get_experts_transforms(n_experts, num_levels, downsample_factor):
+    available_transforms = [
+        Compose([HorizontalRasterScan(num_levels, downsample_factor), DepthFirstReadout()]),
+        Compose([VerticalRasterScan(num_levels, downsample_factor), DepthFirstReadout()]),
+        Compose([HorizontalZigzagScan(num_levels, downsample_factor), DepthFirstReadout()]),
+        Compose([VerticalZigzagScan(num_levels, downsample_factor), DepthFirstReadout()]),
+        Compose([HorizontalRasterScan(num_levels, downsample_factor), BreadthFirstReadout()]),
+        Compose([VerticalRasterScan(num_levels, downsample_factor), BreadthFirstReadout()]),
+        Compose([HorizontalZigzagScan(num_levels, downsample_factor), BreadthFirstReadout()]),
+        Compose([VerticalZigzagScan(num_levels, downsample_factor), BreadthFirstReadout()]),
+    ]
+
+    return available_transforms[:n_experts]
+
+
 if __name__ == '__main__':
     # Test the scans
     num_levels = 3
     downsample_factor = 3
     data = {}
-    shapes = [(11, 13), (4, 5), (2, 2)]
+    shapes = [(32, 78), (8, 20), (2, 5)]
 
     for i in range(num_levels):
         data[f'level_{i}'] = torch.randn(shapes[i])
         print(f'level_{i} ', f'shape: {shapes[i]}')
     
-    scan = VerticalZigzagScan(num_levels=3, downsample_factor=3, p_i=0, p_j=0)
+    scan = HorizontalRasterScan(num_levels=3, downsample_factor=4, p_i=0.5, p_j=0.5)
+    readout = BreadthFirstReadout()
     root = scan(data)
     # Depth first traversal
     for node in PreOrderIter(root):
@@ -334,3 +348,6 @@ if __name__ == '__main__':
     
     print('---------------------------------')
     print(RenderTree(root))
+    print('---------------------------------')
+    print(readout(root).shape)
+    print(scan.reverse_i, scan.reverse_j)

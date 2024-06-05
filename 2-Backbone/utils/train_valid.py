@@ -142,7 +142,7 @@ def train_experts(dataloaders, model, criteria, optimizer, scheduler, args, logg
             xview_logits_loss = xview(logits)
 
             cls_loss = criteria(logits.view(args.n_experts, -1), label.repeat(args.n_experts))
-            loss = cls_loss + xsam_feature_loss + xsam_logits_loss + xview_feature_loss + xview_logits_loss
+            loss = cls_loss + 0.01 * xsam_feature_loss + 0.1 * xsam_logits_loss + 100 * xview_feature_loss + xview_logits_loss
 
 
             if args.rank == 0:
@@ -207,7 +207,7 @@ def train_experts(dataloaders, model, criteria, optimizer, scheduler, args, logg
         torch.save(state_dict, model_path)
 
 
-def valid_experts(dataloaders, model, args):
+def valid_experts(dataloader, model):
     training = model.training
     model.eval()
 

@@ -2,6 +2,9 @@ import torch
 from torch import nn
 from .gather import GatherLayer
 
+import torch
+import torch.nn as nn
+
 class SupConLoss(nn.Module):
     """Supervised Contrastive Learning: https://arxiv.org/pdf/2004.11362.pdf.
     It also supports the unsupervised contrastive loss in SimCLR"""
@@ -63,6 +66,7 @@ class SupConLoss(nn.Module):
         anchor_dot_contrast = torch.div(
             torch.matmul(anchor_feature, contrast_feature.T),
             self.temperature)
+        
         # for numerical stability
         logits_max, _ = torch.max(anchor_dot_contrast, dim=1, keepdim=True)
         logits = anchor_dot_contrast - logits_max.detach()
@@ -80,17 +84,11 @@ class SupConLoss(nn.Module):
 
         # compute log_prob
         exp_logits = torch.exp(logits) * logits_mask
-        log_prob = logits - torch.log(exp_logits.sum(1, keepdim=True))
+        log_prob = logits - torch.log(exp_logits.sum(1, keepdim=True) + 1e-12)  # Add epsilon to avoid log(0)
 
         # compute mean of log-likelihood over positive
-        # modified to handle edge cases when there is no positive pair
-        # for an anchor point. 
-        # Edge case e.g.:- 
-        # features of shape: [4,1,...]
-        # labels:            [0,1,1,2]
-        # loss before mean:  [nan, ..., ..., nan] 
         mask_pos_pairs = mask.sum(1)
-        mask_pos_pairs = torch.where(mask_pos_pairs < 1e-6, 1, mask_pos_pairs)
+        mask_pos_pairs = torch.where(mask_pos_pairs < 1e-6, torch.ones_like(mask_pos_pairs), mask_pos_pairs)
         mean_log_prob_pos = (mask * log_prob).sum(1) / mask_pos_pairs
 
         # loss
@@ -117,7 +115,7 @@ class CrossViewConsistency(nn.Module):
         gt_sim = gt_sim.to(device)
 
         # mask out the diagnol
-        mask = torch.ones_like(view_sim) - torch.eye(view_sim.size(0))
+        mask = torch.ones_like(view_sim) - torch.eye(view_sim.size(0)).to(device)
         mask = mask.bool().to(device)
 
         # compute the loss
@@ -130,7 +128,7 @@ class CrossSampleConsistency(nn.Module):
         super(CrossSampleConsistency, self).__init__()
         self.batch_size = batch_size
         self.world_size = world_size
-        self.criteria = SupConLoss(temperature=0.07, contrast_mode='all', base_temperature=0.07)
+        self.criteria = SupConLoss(temperature=0.5, contrast_mode='all', base_temperature=0.5)
 
     def forward(self, features, labels):
         # features: [1, n_views, C]

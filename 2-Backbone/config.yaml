@@ -19,7 +19,8 @@ num_levels: 3
 downsample_factor: 4
 
 # Model options
-backbone: "MambaExperts"
+backbone: "Experts"
+n_experts: 8
 dropout: 0.25
 activation: "gelu"
 num_layers: 2

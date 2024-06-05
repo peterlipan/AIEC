@@ -51,6 +51,10 @@ class AIECPyramidDataset(Dataset):
         file_path = os.path.join(self.data_root, self.diagnosis[idx], subfolder, self.slide_idx[idx] + suffix)
         features = torch.load(file_path)
         if self.transforms is not None:
-            features = self.transforms(features)
+            # if a list of transforms, implement MoE
+            if isinstance(self.transforms, list):
+                features = torch.stack([transform(features) for transform in self.transforms], dim=1)
+            else:
+                features = self.transforms(features)
         label = self.labels[idx]
         return features, label

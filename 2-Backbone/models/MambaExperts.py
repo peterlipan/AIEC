@@ -56,6 +56,7 @@ class MambaExperts(nn.Module):
         self._fc1 = nn.Sequential(*self._fc1)
         self.n_experts = n_experts
         self.layers = layers
+        self.d_model = d_model
         self.experts = nn.ModuleList()
         if aggregation == 'cls_token':
             self.cls_token = nn.Parameter(torch.randn(1, 1, d_model))
@@ -66,31 +67,31 @@ class MambaExperts(nn.Module):
             
         self.classifier = nn.Linear(d_model, n_classes)
         self.aggregate = Aggregator(aggregation)
-        self.apply(initialize_weights)
+        self.apply(self.initialize_weights)
     
     @staticmethod
     def initialize_weights(module):
-    for m in module.modules():
-        if isinstance(m, nn.Linear):
-            nn.init.xavier_normal_(m.weight)
-            if m.bias is not None:
-                m.bias.data.zero_()
-        if isinstance(m, nn.LayerNorm):
-            nn.init.constant_(m.bias, 0)
-            nn.init.constant_(m.weight, 1.0)
+        for m in module.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.xavier_normal_(m.weight)
+                if m.bias is not None:
+                    m.bias.data.zero_()
+            if isinstance(m, nn.LayerNorm):
+                nn.init.constant_(m.bias, 0)
+                nn.init.constant_(m.weight, 1.0)
     
-    def single_epxpert(self):
+    def single_expert(self):
         temp = nn.Sequential()
         for _ in range(self.layers):
             temp.append(
                 nn.Sequential(
                     Mamba(
-                        d_model=d_model,
+                        d_model=self.d_model,
                         d_state=16,  
                         d_conv=4,    
                         expand=2,
                     ),
-                    nn.LayerNorm(d_model),
+                    nn.LayerNorm(self.d_model),
                 )
             )
         return temp
@@ -101,15 +102,17 @@ class MambaExperts(nn.Module):
         device = x.device
         # features: [B, n_views, d_model]
         # logits: [B, n_views, n_classes]
-        features = torch.Tensor().to(device)
-        logits = torch.Tensor().to(device)
+        features = []
+        logits = []
         x = self._fc1(x)
         for i, expert in enumerate(self.experts):
             exp = expert(x[:, i, :, :])
             exp = self.aggregate(exp)
             pred = self.classifier(exp)
-            features = torch.stack((features, exp), dim=1)
-            logits = torch.stack((logits, pred), dim=1)
+            features.append(exp)
+            logits.append(pred)
+        features = torch.stack(features, dim=1)
+        logits = torch.stack(logits, dim=1)
 
         return ModelOutputs(features=features, logits=logits)
     
