@@ -44,39 +44,39 @@ class MambaMIL(nn.Module):
             for _ in range(layer):
                 self.layers.append(
                     nn.Sequential(
-                        nn.LayerNorm(d_model),
                         SRMamba(
                             d_model=d_model,
                             d_state=16,  
                             d_conv=4,    
                             expand=2,
                         ),
+                        nn.LayerNorm(d_model),
                         )
                 )
         elif backbone == "Mamba":
             for _ in range(layer):
                 self.layers.append(
                     nn.Sequential(
-                        nn.LayerNorm(d_model),
                         Mamba(
                             d_model=d_model,
                             d_state=16,  
                             d_conv=4,    
                             expand=2,
                         ),
+                        nn.LayerNorm(d_model),
                         )
                 )
         elif backbone == "BiMamba":
             for _ in range(layer):
                 self.layers.append(
                     nn.Sequential(
-                        nn.LayerNorm(d_model),
                         BiMamba(
                             d_model=d_model,
                             d_state=16,  
                             d_conv=4,    
                             expand=2,
                         ),
+                        nn.LayerNorm(d_model),
                         )
                 )
         else:
@@ -106,13 +106,12 @@ class MambaMIL(nn.Module):
                 h_ = h
                 h = layer[0](h)
                 h = layer[1](h, rate=self.rate)
-                h = h + h_
+
         elif self.backbone == "Mamba" or self.backbone == "BiMamba":
             for layer in self.layers:
                 h_ = h
                 h = layer[0](h)
                 h = layer[1](h)
-                h = h + h_
 
         h = self.norm(h)
         hidden = self.aggregate(h)

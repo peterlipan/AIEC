@@ -24,7 +24,7 @@ class Aggregator(nn.Module):
         self.aggregation = aggregation
         if self.aggregation == 'avg':
             self.pooler= nn.AdaptiveAvgPool1d(1)
-        elif self.aggregation == 'attention':
+        elif self.aggregation == 'attn':
             self.attn = nn.Sequential(
             nn.Linear(n_features, n_features//2),
             nn.Tanh(),

@@ -3,10 +3,10 @@ from torch import nn
 from .MambaMIL import MambaMIL
 from .ViT import ViTConfig, ViTForImageClassification
 from .transformer import TransformerForSequenceClassification
-
+from .MambaExperts import MambaExperts
 
 def create_model(args):
-    available_archs = ['Mamba', 'BiMamba', 'SRMamba', 'ViT', 'Transformer']
+    available_archs = ['Mamba', 'BiMamba', 'SRMamba', 'ViT', 'Transformer', 'MambaExperts']
     assert args.backbone in available_archs, f"backbone must be one of {available_archs}"
     if 'Mamba' in args.backbone:
         model = MambaMIL(in_dim=args.feature_dim, n_classes=args.num_classes, dropout=args.dropout,
@@ -21,6 +21,8 @@ def create_model(args):
         model = ViTForImageClassification(config)
     elif args.backbone == 'Transformer':
         model = TransformerForSequenceClassification(d_model=args.feature_dim, max_len=50000, ffn_hidden=args.d_model, n_head=args.num_heads, n_layers=args.num_layers, drop_prob=args.dropout, device='cuda', n_classes=args.num_classes, aggregation=args.agg)
+    elif args.backbone == 'MambaExperts':
+        model = MambaExperts(d_in=args.feature_dim, d_model=args.d_model, n_experts=args.n_experts, n_classes=args.num_classes, dropout=args.dropout, layers=args.num_layers, act=args.activation, aggregation=args.agg)
     else:
         model = None
     return model
