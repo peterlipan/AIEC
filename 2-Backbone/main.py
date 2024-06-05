@@ -15,7 +15,7 @@ from torch.utils.data import DataLoader
 from transformers.optimization import get_cosine_schedule_with_warmup
 from utils import yaml_config_hook, train, get_optim, convert_model, train_experts
 from sklearn.model_selection import KFold
-from datasets import AIECPyramidDataset, get_train_transforms, get_test_transforms, get_experts_transforms
+from datasets import AIECPyramidDataset, get_train_transforms, get_test_transforms, experts_train_transforms, experts_test_transforms
 
 
 def main(gpu, args, wandb_logger):
@@ -33,7 +33,8 @@ def main(gpu, args, wandb_logger):
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
 
-    transforms = get_experts_transforms(n_experts=args.n_experts, num_levels=args.num_levels, downsample_factor=args.downsample_factor)
+    train_transforms = experts_train_transforms(n_experts=args.n_experts, num_levels=args.num_levels, downsample_factor=args.downsample_factor)
+    test_transforms = experts_test_transforms(n_experts=args.n_experts, num_levels=args.num_levels, downsample_factor=args.downsample_factor)
 
     # load data file
     csv_file = pd.read_csv(args.csv_path)
@@ -48,7 +49,7 @@ def main(gpu, args, wandb_logger):
         train_csv = csv_file[csv_file['patient_id'].isin(train_patient_idx)]
         test_csv = csv_file[csv_file['patient_id'].isin(test_patient_idx)]
 
-        train_dataset = AIECPyramidDataset(args.data_root, train_csv, use_h5=False, transforms=transforms)
+        train_dataset = AIECPyramidDataset(args.data_root, train_csv, use_h5=False, transforms=train_transforms)
         step_per_epoch = len(train_dataset) // (args.batch_size * args.world_size)
 
         # set sampler for parallel training
@@ -69,7 +70,7 @@ def main(gpu, args, wandb_logger):
             pin_memory=True,
         )
         if rank == 0:
-            test_dataset = AIECPyramidDataset(args.data_root, test_csv, use_h5=False, transforms=transforms)
+            test_dataset = AIECPyramidDataset(args.data_root, test_csv, use_h5=False, transforms=test_transforms)
             test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False,
             num_workers=args.workers, pin_memory=True)
         else:
@@ -84,8 +85,9 @@ def main(gpu, args, wandb_logger):
 
         optimizer = get_optim(model, args)
         criteria = nn.CrossEntropyLoss().cuda()
-        scheduler = get_cosine_schedule_with_warmup(optimizer, args.warmup_epochs * step_per_epoch, args.epochs * step_per_epoch)
-        
+        # scheduler = get_cosine_schedule_with_warmup(optimizer, args.warmup_epochs * step_per_epoch, args.epochs * step_per_epoch)
+        scheduler = None
+
         if args.dataparallel:
             model = convert_model(model)
             model = DataParallel(model, device_ids=[int(x) for x in args.visible_gpus.split(",")])

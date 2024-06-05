@@ -33,12 +33,12 @@ rate: 100
 # training options
 seed: 42
 batch_size: 1
-epochs: 200
+epochs: 250
 fold: 0
 
 # optimizer options
 opt: "adamw"
 ema_decay: 0.999
-lr: 2.0e-4
+lr: 1.0e-3
 weight_decay: 0.01
 warmup_epochs: 10

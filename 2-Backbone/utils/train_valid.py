@@ -142,7 +142,8 @@ def train_experts(dataloaders, model, criteria, optimizer, scheduler, args, logg
             xview_logits_loss = xview(logits)
 
             cls_loss = criteria(logits.view(args.n_experts, -1), label.repeat(args.n_experts))
-            loss = cls_loss + 0.01 * xsam_feature_loss + 0.1 * xsam_logits_loss + 100 * xview_feature_loss + xview_logits_loss
+            overall_cls_loss = criteria(logits.mean(1), label)
+            loss = overall_cls_loss + cls_loss + 0.01 * xsam_feature_loss + 0.1 * xsam_logits_loss + 100 * xview_feature_loss + xview_logits_loss
 
 
             if args.rank == 0:
@@ -221,7 +222,7 @@ def valid_experts(dataloader, model):
             logits = outputs.logits
             # logts: [B, n_experts, n_classes]
             pred = F.softmax(logits, dim=-1)
-            pred = torch.mode(pred, dim=1)[0]
+            pred = torch.mean(pred, dim=1)
             ground_truth = torch.cat((ground_truth, label))
             predictions = torch.cat((predictions, pred))
 

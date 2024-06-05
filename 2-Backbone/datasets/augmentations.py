@@ -313,7 +313,7 @@ def get_test_transforms(num_levels, downsample_factor):
     ])
 
 
-def get_experts_transforms(n_experts, num_levels, downsample_factor):
+def experts_train_transforms(n_experts, num_levels, downsample_factor):
     available_transforms = [
         Compose([HorizontalRasterScan(num_levels, downsample_factor), DepthFirstReadout()]),
         Compose([VerticalRasterScan(num_levels, downsample_factor), DepthFirstReadout()]),
@@ -323,6 +323,21 @@ def get_experts_transforms(n_experts, num_levels, downsample_factor):
         Compose([VerticalRasterScan(num_levels, downsample_factor), BreadthFirstReadout()]),
         Compose([HorizontalZigzagScan(num_levels, downsample_factor), BreadthFirstReadout()]),
         Compose([VerticalZigzagScan(num_levels, downsample_factor), BreadthFirstReadout()]),
+    ]
+
+    return available_transforms[:n_experts]
+
+
+def experts_test_transforms(n_experts, num_levels, downsample_factor):
+    available_transforms = [
+        Compose([HorizontalRasterScan(num_levels, downsample_factor, p_i=0, p_j=0), DepthFirstReadout()]),
+        Compose([VerticalRasterScan(num_levels, downsample_factor, p_i=0, p_j=0), DepthFirstReadout()]),
+        Compose([HorizontalZigzagScan(num_levels, downsample_factor, p_i=0, p_j=0), DepthFirstReadout()]),
+        Compose([VerticalZigzagScan(num_levels, downsample_factor, p_i=0, p_j=0), DepthFirstReadout()]),
+        Compose([HorizontalRasterScan(num_levels, downsample_factor, p_i=0, p_j=0), BreadthFirstReadout()]),
+        Compose([VerticalRasterScan(num_levels, downsample_factor, p_i=0, p_j=0), BreadthFirstReadout()]),
+        Compose([HorizontalZigzagScan(num_levels, downsample_factor, p_i=0, p_j=0), BreadthFirstReadout()]),
+        Compose([VerticalZigzagScan(num_levels, downsample_factor, p_i=0, p_j=0), BreadthFirstReadout()]),
     ]
 
     return available_transforms[:n_experts]

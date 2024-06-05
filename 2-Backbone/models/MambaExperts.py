@@ -19,23 +19,37 @@ class SelfAttention(nn.Module):
 
     def forward(self, x):
         """
-        x: Input tensor with shape [B, L, C]
+        x: Input tensor with shape [B, n_views, L, C]
         """
+        print(x.shape)
+        B, n_views, L, C = x.shape
+
+        # Apply layer normalization
         x = self.layer_norm(x)
-        x = x.permute(0, 2, 1)
 
-        query = self.query_conv(x)
-        key = self.key_conv(x)
-        value = self.value_conv(x)
+        # Reshape to merge batch and n_views dimensions for convolution
+        x = x.view(B * n_views, L, C).permute(0, 2, 1)  # Shape: [B * n_views, C, L]
 
-        energy = torch.bmm(query, key.permute(0, 2, 1))
-        attention = self.softmax(energy)
+        query = self.query_conv(x)  # Shape: [B * n_views, C // reduction_ratio, L]
+        key = self.key_conv(x)      # Shape: [B * n_views, C // reduction_ratio, L]
+        value = self.value_conv(x).permute(0, 2, 1)  # Shape: [B * n_views, L, C]
+        print(query.shape, key.shape, value.shape)
 
-        out = torch.bmm(value, attention.permute(0, 2, 1))
-        out = out.permute(0, 2, 1)
-        out = self.gamma * out + x
+        energy = torch.bmm(query.permute(0, 2, 1), key)  # Shape: [B * n_views, L, L]
+        attention = self.softmax(energy)  # Shape: [B * n_views, L, L]
+
+        out = torch.bmm(attention, value)  # Shape: [B * n_views, L, C]
+        out = out.permute(0, 2, 1)  # Shape: [B * n_views, C, L]
+
+        # Reshape back to [B, n_views, L, C]
+        out = out.view(B, n_views, L, C)
+
+        # Apply residual connection
+        out = self.gamma * out + x.view(B, n_views, L, C)
 
         return out
+
+
 
 
 class MambaExperts(nn.Module):
