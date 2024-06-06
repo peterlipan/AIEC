@@ -1,11 +1,47 @@
 import torch
 import torch.nn as nn
 from utils import Aggregator, ModelOutputs
-from mamba_ssm.modules.mamba_simple import Mamba
+from mamba_ssm import Mamba, Mamba2
+
+
+class MambaRMSNorm(nn.Module):
+    def __init__(self, hidden_size, eps=1e-6):
+        """
+        MambaRMSNorm is equivalent to T5LayerNorm and LlamaRMSNorm
+        """
+        super().__init__()
+        self.weight = nn.Parameter(torch.ones(hidden_size))
+        self.variance_epsilon = eps
+
+    def forward(self, hidden_states):
+        input_dtype = hidden_states.dtype
+        hidden_states = hidden_states.to(torch.float32)
+        variance = hidden_states.pow(2).mean(-1, keepdim=True)
+        hidden_states = hidden_states * torch.rsqrt(variance + self.variance_epsilon)
+        return self.weight * hidden_states.to(input_dtype)
+
+
+class Mamba2Block(nn.Module):
+    def __init__(self, d_model, d_state, d_conv, expand):
+        super().__init__()
+        self.d_model = d_model
+        self.d_state = d_state
+        self.d_conv = d_conv
+        self.expand = expand
+
+        self.norm = MambaRMSNorm(d_model)
+        self.mamba = Mamba2(d_model, d_state, d_conv, expand)
+
+    def forward(self, hidden_states):
+        residual = hidden_states
+        hidden_states = self.norm(hidden_states)
+        hidden_states = self.mamba(hidden_states)
+        hidden_states = residual + hidden_states
+        return hidden_states
 
 
 class SelfAttention(nn.Module):
-    def __init__(self, in_channels, reduction_ratio=8):
+    def __init__(self, in_channels, reduction_ratio=4):
         super(SelfAttention, self).__init__()
         self.in_channels = in_channels
         self.reduction_ratio = reduction_ratio
@@ -21,7 +57,6 @@ class SelfAttention(nn.Module):
         """
         x: Input tensor with shape [B, n_views, L, C]
         """
-        print(x.shape)
         B, n_views, L, C = x.shape
 
         # Apply layer normalization
@@ -33,7 +68,6 @@ class SelfAttention(nn.Module):
         query = self.query_conv(x)  # Shape: [B * n_views, C // reduction_ratio, L]
         key = self.key_conv(x)      # Shape: [B * n_views, C // reduction_ratio, L]
         value = self.value_conv(x).permute(0, 2, 1)  # Shape: [B * n_views, L, C]
-        print(query.shape, key.shape, value.shape)
 
         energy = torch.bmm(query.permute(0, 2, 1), key)  # Shape: [B * n_views, L, L]
         attention = self.softmax(energy)  # Shape: [B * n_views, L, L]
@@ -42,10 +76,10 @@ class SelfAttention(nn.Module):
         out = out.permute(0, 2, 1)  # Shape: [B * n_views, C, L]
 
         # Reshape back to [B, n_views, L, C]
-        out = out.view(B, n_views, L, C)
+        out = out.contiguous().view(B, n_views, L, C)
 
         # Apply residual connection
-        out = self.gamma * out + x.view(B, n_views, L, C)
+        out = self.gamma * out + x.contiguous().view(B, n_views, L, C)
 
         return out
 
@@ -59,7 +93,7 @@ class MambaExperts(nn.Module):
         if prep == 'linear':
             self._fc1 = [nn.LayerNorm(d_in), nn.Linear(d_in, d_model)]
         elif prep == 'attn':
-            self._fc1 = [SelfAttention(d_in)]
+            self._fc1 = [SelfAttention(d_in), nn.LayerNorm(d_in), nn.Linear(d_in, d_model)]
         if act.lower() == 'relu':
             self._fc1 += [nn.ReLU()]
         elif act.lower() == 'gelu':
@@ -72,16 +106,30 @@ class MambaExperts(nn.Module):
         self.layers = layers
         self.d_model = d_model
         self.experts = nn.ModuleList()
+
         if aggregation == 'cls_token':
             self.cls_token = nn.Parameter(torch.randn(1, 1, d_model))
 
         for _ in range(n_experts):
-            expert = self.single_expert()
-            self.experts.append(expert)
+            temp = self.single_expert()
+            self.experts.append(temp)
             
         self.classifier = nn.Linear(d_model, n_classes)
         self.aggregate = Aggregator(aggregation)
         self.apply(self.initialize_weights)
+    
+    def single_expert(self):
+        temp = []
+        for _ in range(self.layers):
+            temp.append(
+                Mamba2Block(
+                    d_model=self.d_model,
+                    d_state=64,
+                    d_conv=4,
+                    expand=2,
+                )
+            )
+        return nn.Sequential(*temp)
     
     @staticmethod
     def initialize_weights(module):
@@ -93,23 +141,6 @@ class MambaExperts(nn.Module):
             if isinstance(m, nn.LayerNorm):
                 nn.init.constant_(m.bias, 0)
                 nn.init.constant_(m.weight, 1.0)
-    
-    def single_expert(self):
-        temp = nn.Sequential()
-        for _ in range(self.layers):
-            temp.append(
-                nn.Sequential(
-                    Mamba(
-                        d_model=self.d_model,
-                        d_state=16,  
-                        d_conv=4,    
-                        expand=2,
-                    ),
-                    nn.LayerNorm(self.d_model),
-                )
-            )
-        return temp
-
 
     def forward(self, x):
         # x: [B, n_views, L, C]

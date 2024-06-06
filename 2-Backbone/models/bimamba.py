@@ -13,7 +13,7 @@ from einops import rearrange, repeat
 from mamba_ssm.ops.selective_scan_interface import selective_scan_fn, mamba_inner_fn
 from causal_conv1d import causal_conv1d_fn, causal_conv1d_update
 from mamba_ssm.ops.triton.selective_state_update import selective_state_update
-from mamba_ssm.ops.triton.layernorm import RMSNorm, layer_norm_fn, rms_norm_fn
+from mamba_ssm.ops.triton.layer_norm import RMSNorm, layer_norm_fn, rms_norm_fn
 
 from torch.cuda.amp import custom_bwd, custom_fwd
 

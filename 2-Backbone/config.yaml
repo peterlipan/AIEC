@@ -23,10 +23,10 @@ backbone: "Experts"
 n_experts: 8
 dropout: 0.25
 activation: "gelu"
-num_layers: 2
+num_layers: 8
 num_heads: 4
-d_model: 256
-agg: 'avg'
+d_model: 512
+agg: 'attn'
 pretrained: ""
 rate: 100
 
@@ -40,5 +40,6 @@ fold: 0
 opt: "adamw"
 ema_decay: 0.999
 lr: 1.0e-3
+scheduler: True
 weight_decay: 0.01
 warmup_epochs: 10

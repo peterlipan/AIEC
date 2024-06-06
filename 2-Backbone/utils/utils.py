@@ -38,7 +38,7 @@ class Aggregator(nn.Module):
     def forward(self, x):
         if self.aggregation == 'avg':
             x = self.pooler(x.permute(0, 2, 1)).squeeze(-1)
-        elif self.aggregation == 'attention':
+        elif self.aggregation == 'attn':
             A = self.attn(x)
             A = F.softmax(A, dim=-1)
             x = torch.bmm(A, x)
