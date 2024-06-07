@@ -33,8 +33,12 @@ def main(gpu, args, wandb_logger):
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
 
-    train_transforms = experts_train_transforms(n_experts=args.n_experts, num_levels=args.num_levels, downsample_factor=args.downsample_factor)
-    test_transforms = experts_test_transforms(n_experts=args.n_experts, num_levels=args.num_levels, downsample_factor=args.downsample_factor)
+    if 'expert' in args.backbone.lower():
+        train_transforms = experts_train_transforms(n_experts=args.n_experts, num_levels=args.num_levels, downsample_factor=args.downsample_factor, lowest_level=args.lowest_level)
+        test_transforms = experts_test_transforms(n_experts=args.n_experts, num_levels=args.num_levels, downsample_factor=args.downsample_factor, lowest_level=args.lowest_level)
+    else:
+        train_transforms = get_train_transforms(num_levels=args.num_levels, downsample_factor=args.downsample_factor, lowest_level=args.lowest_level)
+        test_transforms = get_test_transforms(num_levels=args.num_levels, downsample_factor=args.downsample_factor, lowest_level=args.lowest_level)
 
     # load data file
     csv_file = pd.read_csv(args.csv_path)
@@ -98,8 +102,10 @@ def main(gpu, args, wandb_logger):
             if args.world_size > 1:
                 model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
                 model = DDP(model, device_ids=[gpu])
-        
-        train_experts(loaders, model, criteria, optimizer, scheduler, args, wandb_logger)
+        if 'expert' in args.backbone.lower():
+            train_experts(loaders, model, criteria, optimizer, scheduler, args, wandb_logger)
+        else:
+            train(loaders, model, criteria, optimizer, scheduler, args, wandb_logger)
 
 
 if __name__ == '__main__':
@@ -118,6 +124,7 @@ if __name__ == '__main__':
     os.environ["CUDA_VISIBLE_DEVICES"] = args.visible_gpus
     os.environ['MASTER_ADDR'] = 'localhost'
     os.environ['MASTER_PORT'] = '12345'
+    torch.autograd.set_detect_anomaly(True)
 
     # check checkpoints path
     if not os.path.exists(args.checkpoints):

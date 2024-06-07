@@ -29,8 +29,8 @@ class Mamba2Block(nn.Module):
         self.d_conv = d_conv
         self.expand = expand
 
-        self.norm = MambaRMSNorm(d_model)
-        self.mamba = Mamba2(d_model, d_state, d_conv, expand)
+        self.norm = nn.LayerNorm(d_model)
+        self.mamba = Mamba(d_model, d_state, d_conv, expand)
 
     def forward(self, hidden_states):
         residual = hidden_states
@@ -87,7 +87,7 @@ class SelfAttention(nn.Module):
 
 
 class MambaExperts(nn.Module):
-    def __init__(self, d_in=1024, d_model=512, n_experts=8, n_classes=2, dropout=0.1, layers=2, act='gelu', aggregation='avg', prep='linear'):
+    def __init__(self, d_in=1024, d_model=512, d_state=64, n_experts=8, n_classes=2, dropout=0.1, layers=2, act='gelu', aggregation='avg', prep='linear'):
         super(MambaExperts, self).__init__()
 
         if prep == 'linear':
@@ -105,6 +105,7 @@ class MambaExperts(nn.Module):
         self.n_experts = n_experts
         self.layers = layers
         self.d_model = d_model
+        self.d_state = d_state
         self.experts = nn.ModuleList()
 
         if aggregation == 'cls_token':
@@ -124,7 +125,7 @@ class MambaExperts(nn.Module):
             temp.append(
                 Mamba2Block(
                     d_model=self.d_model,
-                    d_state=64,
+                    d_state=self.d_state,
                     d_conv=4,
                     expand=2,
                 )

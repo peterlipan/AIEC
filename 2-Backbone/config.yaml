@@ -16,30 +16,32 @@ dataset: "AIEC"
 feature_dim: 1024
 KFold: 5
 num_levels: 3
+lowest_level: 1
 downsample_factor: 4
 
 # Model options
-backbone: "Experts"
+backbone: "Transformer"
 n_experts: 8
-dropout: 0.25
+dropout: 0.4
 activation: "gelu"
-num_layers: 8
-num_heads: 4
+num_layers: 4
+num_heads: 16
 d_model: 512
-agg: 'attn'
+d_state: 16
+agg: 'avg'
 pretrained: ""
 rate: 100
 
 # training options
 seed: 42
 batch_size: 1
-epochs: 250
+epochs: 200
 fold: 0
 
 # optimizer options
 opt: "adamw"
 ema_decay: 0.999
-lr: 1.0e-3
+lr: 2.0e-4
 scheduler: True
-weight_decay: 0.01
-warmup_epochs: 10
+weight_decay: 0.1
+warmup_epochs: 20

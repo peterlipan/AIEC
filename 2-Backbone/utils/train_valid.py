@@ -117,8 +117,6 @@ def validate(dataloader, model):
 
 
 def train_experts(dataloaders, model, criteria, optimizer, scheduler, args, logger):
-    cudnn.benchmark = False
-    cudnn.deterministic = True
     train_loader, test_loader = dataloaders
     model.train()
     start = time.time()
@@ -143,7 +141,8 @@ def train_experts(dataloaders, model, criteria, optimizer, scheduler, args, logg
 
             cls_loss = criteria(logits.view(args.n_experts, -1), label.repeat(args.n_experts))
             overall_cls_loss = criteria(logits.mean(1), label)
-            loss = overall_cls_loss + cls_loss + 0.01 * xsam_feature_loss + 0.1 * xsam_logits_loss + 100 * xview_feature_loss + xview_logits_loss
+            # print(xsam_feature_loss.item(), xsam_logits_loss.item(), xview_feature_loss.item(), xview_logits_loss.item(), cls_loss.item(), overall_cls_loss.item())
+            loss = cls_loss + overall_cls_loss + 0.01 * xsam_feature_loss + 0.01 * xsam_logits_loss + xview_feature_loss + xview_logits_loss
 
 
             if args.rank == 0:
@@ -151,6 +150,7 @@ def train_experts(dataloaders, model, criteria, optimizer, scheduler, args, logg
                 
             optimizer.zero_grad()
             loss.backward()
+
             optimizer.step()
             if scheduler is not None:
                 scheduler.step()
@@ -161,21 +161,11 @@ def train_experts(dataloaders, model, criteria, optimizer, scheduler, args, logg
 
             cur_iter += 1
             if args.rank == 0:
-                if cur_iter % 50 == 1:
+                if cur_iter % 50 == 0:
                     cur_lr = optimizer.param_groups[0]['lr']
-                    test_acc, test_f1, test_auc, test_ap, test_bac, test_sens, test_spec, test_prec, test_mcc, test_kappa = valid_experts(
-                        test_loader, model)
+                    test_performance = valid_experts(test_loader, model)
                     if logger is not None:
-                        logger.log({'test': {'Accuracy': test_acc,
-                                             'F1 score': test_f1,
-                                             'AUC': test_auc,
-                                             'AP': test_ap,
-                                             'Balanced Accuracy': test_bac,
-                                             'Sensitivity': test_sens,
-                                             'Specificity': test_spec,
-                                             'Precision': test_prec,
-                                             'MCC': test_mcc,
-                                             'Kappa': test_kappa},
+                        logger.log({'test': test_performance,
                                     'train': {'loss': train_loss,
                                               'learning_rate': cur_lr}}, )
 
@@ -185,19 +175,9 @@ def train_experts(dataloaders, model, criteria, optimizer, scheduler, args, logg
 
     # validate and save the model
     if args.rank == 0:
-        test_acc, test_f1, test_auc, test_ap, test_bac, test_sens, test_spec, test_prec, test_mcc, test_kappa = valid_experts(
-            test_loader, model)
+        test_performance = valid_experts(test_loader, model)
         if logger is not None:
-            logger.log({'test': {'Accuracy': test_acc,
-                                    'F1 score': test_f1,
-                                    'AUC': test_auc,
-                                    'AP': test_ap,
-                                    'Balanced Accuracy': test_bac,
-                                    'Sensitivity': test_sens,
-                                    'Specificity': test_spec,
-                                    'Precision': test_prec,
-                                    'MCC': test_mcc,
-                                    'Kappa': test_kappa}})
+            logger.log({'test': test_performance})
         print(f"\nFold {args.fold}, Test Accuracy: {test_acc}, Test F1: {test_f1}, Test AUC: {test_auc}, "
                 f"Test BAC: {test_bac}, Test Sensitivity: {test_sens}, Test Specificity: {test_spec}, "
                 f"Test Precision: {test_prec}, Test MCC: {test_mcc}, Test Kappa: {test_kappa}")
@@ -214,6 +194,9 @@ def valid_experts(dataloader, model):
 
     ground_truth = torch.Tensor().cuda()
     predictions = torch.Tensor().cuda()
+    exp_preds = torch.Tensor().cuda()
+
+    return_dict = {}
 
     with torch.no_grad():
         for img, label in dataloader:
@@ -222,10 +205,33 @@ def valid_experts(dataloader, model):
             logits = outputs.logits
             # logts: [B, n_experts, n_classes]
             pred = F.softmax(logits, dim=-1)
+            exp_preds = torch.cat((exp_preds, pred))
             pred = torch.mean(pred, dim=1)
             ground_truth = torch.cat((ground_truth, label))
             predictions = torch.cat((predictions, pred))
 
+        for i in range(exp_preds.shape[1]):
+            acc, f1, auc, ap, bac, sens, spec, prec, mcc, kappa = compute_avg_metrics(ground_truth, exp_preds[:, i, :], avg='micro')
+            return_dict[f'Expert_{i}'] = {'Accuracy': acc,
+                                          'F1 score': f1,
+                                          'AUC': auc,
+                                          'AP': ap,
+                                          'Balanced Accuracy': bac,
+                                          'Sensitivity': sens,
+                                          'Specificity': spec,
+                                          'Precision': prec,
+                                          'MCC': mcc,
+                                          'Kappa': kappa}
         acc, f1, auc, ap, bac, sens, spec, prec, mcc, kappa = compute_avg_metrics(ground_truth, predictions, avg='micro')
+        return_dict['Overall'] = {'Accuracy': acc,
+                                  'F1 score': f1,
+                                  'AUC': auc,
+                                  'AP': ap,
+                                  'Balanced Accuracy': bac,
+                                  'Sensitivity': sens,
+                                  'Specificity': spec,
+                                  'Precision': prec,
+                                  'MCC': mcc,
+                                  'Kappa': kappa}
     model.train(training)
-    return acc, f1, auc, ap, bac, sens, spec, prec, mcc, kappa
+    return return_dict

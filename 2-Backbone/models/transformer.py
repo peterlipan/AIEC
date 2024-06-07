@@ -197,7 +197,6 @@ class PositionalEncoding(nn.Module):
     def forward(self, x):
         # self.encoding
         # [max_len = 512, d_model = 512]
-
         batch_size, seq_len, _ = x.size()
         # [batch_size = 128, seq_len = 30]
 
