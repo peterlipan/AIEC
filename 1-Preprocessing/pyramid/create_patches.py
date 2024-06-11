@@ -47,7 +47,7 @@ def main(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Whole Slide Image Processing')
     parser.add_argument('--src', type=str, default='/mnt/zhen_chen/AIEC_tiff')
-    parser.add_argument('--dst', type=str, default='/mnt/zhen_chen/pyramid_patches')
+    parser.add_argument('--dst', type=str, default='/mnt/zhen_chen/pyramid_patches_512')
     parser.add_argument('--patch_size', type=int, default=512)
     parser.add_argument('--base_downsample', type=int, default=1)
     parser.add_argument('--downsample_factor', type=int, default=4)

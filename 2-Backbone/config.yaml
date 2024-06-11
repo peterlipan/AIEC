@@ -7,7 +7,7 @@ workers: 8
 visible_gpus: "0,1,2,3,4,5,6,7"
 
 # Paths
-data_root: "/mnt/zhen_chen/pyramid_features"
+data_root: "/mnt/zhen_chen/pyramid_features_512"
 csv_path: "./aiec_info.csv"
 checkpoints: "./checkpoints"
 
@@ -25,7 +25,7 @@ n_experts: 8
 dropout: 0.4
 activation: "gelu"
 num_layers: 4
-num_heads: 16
+num_heads: 8
 d_model: 512
 d_state: 16
 agg: 'avg'

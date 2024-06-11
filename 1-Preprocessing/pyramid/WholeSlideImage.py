@@ -1,6 +1,7 @@
 import os
 import cv2
 import h5py
+import time
 import pathlib
 import openslide
 import numpy as np
@@ -95,12 +96,19 @@ class WholeSlideImage(object):
         return output_path
 
     def multi_level_segment(self):
-        h5_path = os.path.join(self.dst, 'patches', f'{self.wsi_name}.h5')
+        h5_path = os.path.join(self.dst, 'coordinates', f'{self.wsi_name}.h5')
+        patch_path = os.path.join(self.dst, 'patches', f'{self.wsi_name}')
         if os.path.exists(h5_path) and self.skip:
             print(f'\n{self.wsi_name} already processed. Skipping...')
             return
         os.makedirs(os.path.dirname(h5_path), exist_ok=True)
+        os.makedirs(patch_path, exist_ok=True)
+
+        # load the WSI
+        print('loading WSI...')
+        start = time.time()
         img = np.array(self.wsi.read_region((0, 0), self.base_level, self.base_dimensions))
+        print(f'WSI loaded in {time.time() - start:.2f}s')
         img_hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
         img_med = cv2.medianBlur(img_hsv[:, :, 1], self.mthresh)
 
@@ -135,6 +143,22 @@ class WholeSlideImage(object):
             y_range = np.arange(y, stop_y, step_size)
             x_coord, y_coord = np.meshgrid(x_range, y_range, indexing='ij')
             asset_dict[f'level_{i}'] = np.stack([x_coord, y_coord], axis=-1)
+        
+        # For faster feature extraction, directly resize and save the patches
+        for i in range(self.num_levels):
+            level_save_path = os.path.join(patch_path, f'level_{i}')
+            os.makedirs(level_save_path, exist_ok=True)
+            level_coords = asset_dict[f'level_{i}']
+            level_patch_size = int(self.patch_size * self.downsample_factor ** i)
+            for m in range(level_coords.shape[0]):
+                for n in range(level_coords.shape[1]):
+                    x, y = level_coords[m, n]
+                    patch = img[y:y+level_patch_size, x:x+level_patch_size]
+                    patch = cv2.resize(patch, (self.patch_size, self.patch_size), interpolation=cv2.INTER_CUBIC)
+                    cv2.imwrite(os.path.join(level_save_path, f'{m}_{n}_.png'), patch)
+        
+        overview = cv2.resize(img, (self.patch_size, self.patch_size), interpolation=cv2.INTER_CUBIC)
+        cv2.imwrite(os.path.join(patch_path, 'overview.png'), overview)
 
         if self.visualize:
             self._visualize_grid(img, asset_dict, stop_x, stop_y)
@@ -147,3 +171,14 @@ class WholeSlideImage(object):
         assert asset_dict, "Asset dictionary is empty"
 
         self.save_hdf5(h5_path, asset_dict, attr_dict, mode='w')
+
+    def process_overview(self):
+        patch_path = os.path.join(self.dst, 'patches', f'{self.wsi_name}', 'overview.png')
+
+        print('loading WSI...')
+        start = time.time()
+        img = np.array(self.wsi.read_region((0, 0), self.base_level, self.base_dimensions))
+        print(f'WSI loaded in {time.time() - start:.2f}s')
+
+        overview = cv2.resize(img, (self.patch_size, self.patch_size), interpolation=cv2.INTER_CUBIC)
+        cv2.imwrite(patch_path, overview)

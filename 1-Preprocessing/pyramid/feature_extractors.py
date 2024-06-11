@@ -1,7 +1,7 @@
 import os
 import timm
 import torch
-from torchvision import transforms
+from torchvision import models, transforms
 
 
 IMAGENET_MEAN = [0.485, 0.456, 0.406]
@@ -26,6 +26,13 @@ MODEL2CONSTANTS = {
 	}
 }
 
+class Identity(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+    
+    def forward(self, x):
+        return x
+
 
 class TimmCNNEncoder(torch.nn.Module):
     def __init__(self, model_name: str = 'resnet50.tv_in1k', 
@@ -48,6 +55,20 @@ class TimmCNNEncoder(torch.nn.Module):
         if self.pool:
             out = self.pool(out).squeeze(-1).squeeze(-1)
         return out
+
+def TorchvisionCNNEncoder(backbone: str = 'resnet50'):
+    model = getattr(models, backbone)(pretrained=True)
+    if 'resnet' in backbone or 'resnext' in backbone:
+        feature_dim = model.fc.in_features
+        model.fc = Identity()
+    elif 'dense' in backbone:
+        feature_dim = model.classifier.in_features
+        model.classifier = Identity()
+    elif 'vit' in backbone:
+        feature_dim = model.heads.head.in_features
+        model.heads = Identity()
+    
+    return model, feature_dim
 
 def has_CONCH():
     HAS_CONCH = False
@@ -80,9 +101,11 @@ def has_UNI():
     return HAS_UNI, UNI_CKPT_PATH
 
 def get_encoder(model_name, target_img_size=512):
-    if model_name == 'resnet50_trunc':
-        model = TimmCNNEncoder()
+    custom_models = ['uni_v1', 'conch_v1']
+    if model_name not in custom_models:
+        model, feature_dim = TorchvisionCNNEncoder(model_name)
     elif model_name == 'uni_v1':
+        feature_dim = 1024
         HAS_UNI, UNI_CKPT_PATH = has_UNI()
         assert HAS_UNI, 'UNI is not available'
         model = timm.create_model("vit_large_patch16_224",
@@ -91,6 +114,7 @@ def get_encoder(model_name, target_img_size=512):
                             dynamic_img_size=True)
         model.load_state_dict(torch.load(UNI_CKPT_PATH, map_location="cpu"), strict=True)
     elif model_name == 'conch_v1':
+        feature_dim = 1024
         HAS_CONCH, CONCH_CKPT_PATH = has_CONCH()
         assert HAS_CONCH, 'CONCH is not available'
         from conch.open_clip_custom import create_model_from_pretrained
@@ -99,11 +123,14 @@ def get_encoder(model_name, target_img_size=512):
     else:
         raise NotImplementedError('model {} not implemented'.format(model_name))
     
-    constants = MODEL2CONSTANTS[model_name]
+    constants = {
+		"mean": IMAGENET_MEAN,
+		"std": IMAGENET_STD
+	}
     img_transforms = transforms.Compose([
         transforms.Resize(target_img_size),
         transforms.ToTensor(),
         transforms.Normalize(mean=constants['mean'], std=constants['std'])
     ])
 
-    return model, img_transforms
+    return model, feature_dim, img_transforms

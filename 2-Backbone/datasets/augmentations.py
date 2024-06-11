@@ -25,7 +25,7 @@ class AbstractScan(object):
             self.reverse_j = True
 
         self.data = data
-        root = AnyNode(i=0, j=0, level=self.num_levels, data=None)
+        root = AnyNode(i=0, j=0, level=self.num_levels, data=data['overview'][0,0])
         self._recursive_scan(root)
         return root
 
@@ -240,14 +240,14 @@ class DepthFirstReadout(AbstractReadout):
     
     def _readout_func(self, data):
         # drop the pseudo root node
-        return torch.stack([node.data for node in PreOrderIter(data)][1:])
+        return torch.stack([node.data for node in PreOrderIter(data)])
 
 
 class BreadthFirstReadout(AbstractReadout):
     
     def _readout_func(self, data):
         # drop the pseudo root node
-        return torch.stack([node.data for node in LevelOrderIter(data)][1:])
+        return torch.stack([node.data for node in LevelOrderIter(data)])
                 
 
 class OneOf(object):
@@ -337,8 +337,9 @@ if __name__ == '__main__':
     for i in range(num_levels):
         data[f'level_{i}'] = torch.randn(shapes[i])
         print(f'level_{i} ', f'shape: {shapes[i]}')
+    data['overview'] = torch.randn((1,1))
     
-    scan = HorizontalRasterScan(num_levels=3, downsample_factor=3, lowest_level=1, p_i=0.5, p_j=0.5)
+    scan = HorizontalRasterScan(num_levels=3, downsample_factor=3, lowest_level=0, p_i=0.5, p_j=0.5)
     readout = BreadthFirstReadout()
     root = scan(data)
     # Depth first traversal
