@@ -114,7 +114,8 @@ class WholeSlideImage(object):
 
         # thresholding
         if self.use_otsu:
-            _, img_otsu = cv2.threshold(img_med, 0, self.sthresh_up, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+            print('Using Otsu thresholding')
+            _, img_otsu = cv2.threshold(img_med, self.sthresh, self.sthresh_up, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
         else:
             _, img_otsu = cv2.threshold(img_med, self.sthresh, self.sthresh_up, cv2.THRESH_BINARY)
 

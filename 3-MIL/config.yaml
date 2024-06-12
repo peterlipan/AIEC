@@ -16,7 +16,7 @@ dataset: "AIEC"
 feature_dim: 1024
 KFold: 5
 num_levels: 3
-lowest_level: 0
+lowest_level: 1
 downsample_factor: 4
 
 # Model options
@@ -34,15 +34,14 @@ pretrained: "state-spaces/mamba-130m-hf"
 # training options
 seed: 42
 batch_size: 1
-epochs: 200
+epochs: 70
 fold: 0
 
 # optimizer options
 opt: "adamw"
-ema_decay: 0.999
 lr: 1.0e-4
 scheduler: True
-weight_decay: 0.1
-warmup_epochs: 20
+weight_decay: 0.01
+warmup_epochs: 15
 lambda_xsam: 0.01
 lambda_xview: 1

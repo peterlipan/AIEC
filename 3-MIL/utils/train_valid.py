@@ -150,7 +150,6 @@ def train_experts(dataloaders, model, criteria, optimizer, scheduler, args, logg
                 
             optimizer.zero_grad()
             loss.backward()
-
             optimizer.step()
             if scheduler is not None:
                 scheduler.step()
