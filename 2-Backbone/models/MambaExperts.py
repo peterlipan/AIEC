@@ -1,7 +1,9 @@
 import torch
 import torch.nn as nn
+from transformers import MambaConfig
 from utils import Aggregator, ModelOutputs
 from mamba_ssm import Mamba, Mamba2
+from .pretrained_mamba import MyMamba
 
 
 class MambaRMSNorm(nn.Module):
@@ -87,13 +89,24 @@ class SelfAttention(nn.Module):
 
 
 class MambaExperts(nn.Module):
-    def __init__(self, d_in=1024, d_model=512, d_state=64, n_experts=8, n_classes=2, dropout=0.1, layers=2, act='gelu', aggregation='avg', prep='linear'):
+    def __init__(self, d_in=1024, d_model=512, d_state=64, n_experts=8, n_classes=2, dropout=0.1, layers=2, act='gelu', aggregation='avg', prep='linear', pretrained=''):
         super(MambaExperts, self).__init__()
 
+        if pretrained:
+            self.config = MambaConfig.from_pretrained(pretrained)
+            self.config.num_hidden_layers = layers
+            self.layers = layers
+            self.d_model = self.config.d_model
+        else:
+            self.layers = layers
+            self.d_model = d_model
+            self.d_state = d_state
+
+
         if prep == 'linear':
-            self._fc1 = [nn.LayerNorm(d_in), nn.Linear(d_in, d_model)]
+            self._fc1 = [nn.LayerNorm(d_in), nn.Linear(d_in, self.d_model)]
         elif prep == 'attn':
-            self._fc1 = [SelfAttention(d_in), nn.LayerNorm(d_in), nn.Linear(d_in, d_model)]
+            self._fc1 = [SelfAttention(d_in), nn.LayerNorm(d_in), nn.Linear(d_in, self.d_model)]
         if act.lower() == 'relu':
             self._fc1 += [nn.ReLU()]
         elif act.lower() == 'gelu':
@@ -103,19 +116,17 @@ class MambaExperts(nn.Module):
 
         self._fc1 = nn.Sequential(*self._fc1)
         self.n_experts = n_experts
-        self.layers = layers
-        self.d_model = d_model
-        self.d_state = d_state
         self.experts = nn.ModuleList()
+        self.pretrained = pretrained
 
         if aggregation == 'cls_token':
             self.cls_token = nn.Parameter(torch.randn(1, 1, d_model))
 
         for _ in range(n_experts):
-            temp = self.single_expert()
+            temp = MyMamba.from_pretrained(self.pretrained, config=self.config) if pretrained else self.single_expert()
             self.experts.append(temp)
             
-        self.classifier = nn.Linear(d_model, n_classes)
+        self.classifier = nn.Linear(self.d_model, n_classes)
         self.aggregate = Aggregator(aggregation)
         self.apply(self.initialize_weights)
     

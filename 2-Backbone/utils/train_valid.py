@@ -142,7 +142,7 @@ def train_experts(dataloaders, model, criteria, optimizer, scheduler, args, logg
             cls_loss = criteria(logits.view(args.n_experts, -1), label.repeat(args.n_experts))
             overall_cls_loss = criteria(logits.mean(1), label)
             # print(xsam_feature_loss.item(), xsam_logits_loss.item(), xview_feature_loss.item(), xview_logits_loss.item(), cls_loss.item(), overall_cls_loss.item())
-            loss = cls_loss + overall_cls_loss + 0.01 * xsam_feature_loss + 0.01 * xsam_logits_loss + xview_feature_loss + xview_logits_loss
+            loss = cls_loss + overall_cls_loss + args.lambda_xsam * xsam_feature_loss + args.lambda_xsam * xsam_logits_loss + args.lambda_xview * xview_feature_loss + args.lambda_xview * xview_logits_loss
 
 
             if args.rank == 0:
@@ -167,6 +167,10 @@ def train_experts(dataloaders, model, criteria, optimizer, scheduler, args, logg
                     if logger is not None:
                         logger.log({'test': test_performance,
                                     'train': {'loss': train_loss,
+                                              'xsample_feature_loss': args.lambda_xsam * xsam_feature_loss.item(),
+                                              'xsample_logits_loss': args.lambda_xsam * xsam_logits_loss.item(),
+                                              'xview_feature_loss': args.lambda_xview * xview_feature_loss.item(),
+                                              'xview_logits_loss': args.lambda_xview * xview_logits_loss.item(),
                                               'learning_rate': cur_lr}}, )
 
                     print('\rEpoch: [%2d/%2d] Iter [%4d/%4d] || Time: %4.4f sec || lr: %.6f || Loss: %.4f' % (
