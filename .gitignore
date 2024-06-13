@@ -19,3 +19,6 @@ results/
 
 # checkpoints
 **/checkpoints
+
+# weights
+*.pth

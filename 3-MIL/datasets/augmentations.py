@@ -76,7 +76,6 @@ class HorizontalRasterScan(AbstractScan):
 
 class VerticalRasterScan(AbstractScan):
 
-    
     # recursively build tree in the vertical direction of each level
     def _recursive_scan(self, cur_node: AnyNode):
         # spatial information of the current node
