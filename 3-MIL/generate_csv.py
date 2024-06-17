@@ -8,15 +8,23 @@ import pandas as pd
 
 if __name__ == '__main__':
     groups = ['MMRd', 'NSMP', 'P53abn', 'POLEmut']
-    df = pd.DataFrame(columns=['patient_id', 'slide_id', 'num_patches', 'diagnosis'])
+    df = pd.DataFrame(columns=['patient_id', 'slide_id', 'diagnosis', 'level_0', 'level_1', 'level_2'])
     for item in groups:
-        subpath = os.path.join('/mnt/zhen_chen/pyramid_features', item, 'pt_files')
+        subpath = os.path.join('/mnt/zhen_chen/pyramid_features_512', item, 'pt_files')
         filenames = [f for f in os.listdir(subpath) if f.endswith('.pt')]
-        slide_idx = [pathlib.Path(f).stem for f in filenames]
-        num_levels = [len(torch.load(os.path.join(subpath, f))) for f in filenames]
-        # take the slide_idx as patient_id
-        patient_id = slide_idx
-        diagnosis = [item] * len(slide_idx)
-        df = df._append(pd.DataFrame({'patient_id': patient_id, 'slide_id': slide_idx, 'num_levels': num_levels,
-        'diagnosis': diagnosis}))
-    df.to_csv('/mnt/zhen_chen/AIEC/2-Backbone/aiec_info.csv', index=False)
+        for f in filenames:
+            features = torch.load(os.path.join(subpath, f))
+            slide_idx = pathlib.Path(f).stem
+            patient_id = slide_idx
+            row = {'patient_id': patient_id, 'slide_id': slide_idx, 'diagnosis': item, 'level_0': 0, 'level_1': 0, 'level_2': 0} 
+            for level in ['level_0', 'level_1', 'level_2']:
+                level_feature = features[level]
+                level_feature = level_feature.view(-1, level_feature.shape[-1])
+                non_zero = torch.any(level_feature != 0, dim=-1)
+                num_non_zero = torch.sum(non_zero).item()
+                row[level] = num_non_zero
+            if row['level_0'] < 50:
+                continue
+            
+            df = df._append(row, ignore_index=True)
+    df.to_csv('/mnt/zhen_chen/AIEC/3-MIL/aiec_info.csv', index=False)

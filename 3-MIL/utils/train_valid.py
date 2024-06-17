@@ -122,7 +122,8 @@ def train_experts(dataloaders, model, criteria, optimizer, scheduler, args, logg
     start = time.time()
 
     xsample = CrossSampleConsistency(batch_size=args.batch_size, world_size=args.world_size)
-    xview = CrossViewConsistency()
+    xview_KL = CrossViewConsistency(div='KL')
+    xview_L2 = CrossViewConsistency(div='L2')
 
     cur_iter = 0
     for epoch in range(args.epochs):
@@ -131,18 +132,15 @@ def train_experts(dataloaders, model, criteria, optimizer, scheduler, args, logg
         for i, (img, label) in enumerate(train_loader):
             img, label = img.cuda(non_blocking=True), label.cuda(non_blocking=True).long()
             outputs = model(img)
-            features, logits = outputs.features, outputs.logits
+            features, logits, moe_features, moe_logits = outputs.features, outputs.logits, outputs.moe_features, outputs.moe_logits
 
             # classification loss
-            xsam_feature_loss = xsample(features, label)
-            xsam_logits_loss = xsample(logits, label)
-            xview_feature_loss = xview(features)
-            xview_logits_loss = xview(logits)
+            xview_logits_loss = xview_KL(logits, moe_logits)
 
             cls_loss = criteria(logits.view(args.n_experts, -1), label.repeat(args.n_experts))
-            overall_cls_loss = criteria(logits.mean(1), label)
+            overall_cls_loss = criteria(moe_logits, label)
             # print(xsam_feature_loss.item(), xsam_logits_loss.item(), xview_feature_loss.item(), xview_logits_loss.item(), cls_loss.item(), overall_cls_loss.item())
-            loss = cls_loss + overall_cls_loss + args.lambda_xsam * xsam_feature_loss + args.lambda_xsam * xsam_logits_loss + args.lambda_xview * xview_feature_loss + args.lambda_xview * xview_logits_loss
+            loss = cls_loss + overall_cls_loss + args.lambda_xview * xview_logits_loss
 
 
             if args.rank == 0:
@@ -166,10 +164,9 @@ def train_experts(dataloaders, model, criteria, optimizer, scheduler, args, logg
                     if logger is not None:
                         logger.log({'test': test_performance,
                                     'train': {'loss': train_loss,
-                                              'xsample_feature_loss': args.lambda_xsam * xsam_feature_loss.item(),
-                                              'xsample_logits_loss': args.lambda_xsam * xsam_logits_loss.item(),
-                                              'xview_feature_loss': args.lambda_xview * xview_feature_loss.item(),
                                               'xview_logits_loss': args.lambda_xview * xview_logits_loss.item(),
+                                              'expert_cls_loss': cls_loss.item(),
+                                              'overall_cls_loss': overall_cls_loss.item(),
                                               'learning_rate': cur_lr}}, )
 
                     print('\rEpoch: [%2d/%2d] Iter [%4d/%4d] || Time: %4.4f sec || lr: %.6f || Loss: %.4f' % (

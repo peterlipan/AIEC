@@ -171,5 +171,8 @@ class MambaExperts(nn.Module):
         features = torch.stack(features, dim=1)
         logits = torch.stack(logits, dim=1)
 
-        return ModelOutputs(features=features, logits=logits)
+        moe_features = self.aggregate(features)
+        moe_logits = self.classifier(moe_features)
+
+        return ModelOutputs(features=features, logits=logits, moe_features=moe_features, moe_logits=moe_logits)
     

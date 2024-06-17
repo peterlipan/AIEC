@@ -62,7 +62,10 @@ class HorizontalRasterScan(AbstractScan):
             # Horizontal scan
             for child_i in range_i:
                 for child_j in range_j:
-                    temp = AnyNode(parent=cur_node, i=child_i, j=child_j, level=child_level, data=self.data[f'level_{child_level}'][child_i, child_j])
+                    temp_data = self.data[f'level_{child_level}'][child_i, child_j]
+                    if torch.all(temp_data == 0):
+                        continue
+                    temp = AnyNode(parent=cur_node, i=child_i, j=child_j, level=child_level, data=temp_data)
             return 
 
         # if the img is not the parent of leaves, recursively add the children
@@ -70,7 +73,10 @@ class HorizontalRasterScan(AbstractScan):
             # Horizontal scan
             for child_i in range_i:
                 for child_j in range_j:
-                    temp = AnyNode(parent=cur_node, i=child_i, j=child_j, level=child_level, data=self.data[f'level_{child_level}'][child_i, child_j])
+                    temp_data = self.data[f'level_{child_level}'][child_i, child_j]
+                    if torch.all(temp_data == 0):
+                        continue
+                    temp = AnyNode(parent=cur_node, i=child_i, j=child_j, level=child_level, data=temp_data)
                     self._recursive_scan(temp)
 
 
@@ -106,7 +112,10 @@ class VerticalRasterScan(AbstractScan):
             # Vertical scan
             for child_j in range_j:
                 for child_i in range_i:
-                    temp = AnyNode(parent=cur_node, i=child_i, j=child_j, level=child_level, data=self.data[f'level_{child_level}'][child_i, child_j])
+                    temp_data = self.data[f'level_{child_level}'][child_i, child_j]
+                    if torch.all(temp_data == 0):
+                        continue
+                    temp = AnyNode(parent=cur_node, i=child_i, j=child_j, level=child_level, data=temp_data)
             return 
 
         # if the img is not the parent of leaves, recursively add the children
@@ -114,7 +123,10 @@ class VerticalRasterScan(AbstractScan):
             # Vertical scan
             for child_j in range_j:
                 for child_i in range_i:
-                    temp = AnyNode(parent=cur_node, i=child_i, j=child_j, level=child_level, data=self.data[f'level_{child_level}'][child_i, child_j])
+                    temp_data = self.data[f'level_{child_level}'][child_i, child_j]
+                    if torch.all(temp_data == 0):
+                        continue
+                    temp = AnyNode(parent=cur_node, i=child_i, j=child_j, level=child_level, data=temp_data)
                     self._recursive_scan(temp)
 
 
@@ -151,10 +163,16 @@ class HorizontalZigzagScan(AbstractScan):
             for count_i, child_i in enumerate(range_i):
                 if count_i % 2 == 0:
                     for child_j in range_j:
-                        temp = AnyNode(parent=cur_node, i=child_i, j=child_j, level=child_level, data=self.data[f'level_{child_level}'][child_i, child_j])
+                        temp_data = self.data[f'level_{child_level}'][child_i, child_j]
+                        if torch.all(temp_data == 0):
+                            continue
+                        temp = AnyNode(parent=cur_node, i=child_i, j=child_j, level=child_level, data=temp_data)
                 else:
                     for child_j in reversed(range_j):
-                        temp = AnyNode(parent=cur_node, i=child_i, j=child_j, level=child_level, data=self.data[f'level_{child_level}'][child_i, child_j])
+                        temp_data = self.data[f'level_{child_level}'][child_i, child_j]
+                        if torch.all(temp_data == 0):
+                            continue
+                        temp = AnyNode(parent=cur_node, i=child_i, j=child_j, level=child_level, data=temp_data)
             return
 
         # if the img is not the parent of leaves, recursively add the children
@@ -163,11 +181,17 @@ class HorizontalZigzagScan(AbstractScan):
             for count_i, child_i in enumerate(range_i):
                 if count_i % 2 == 0:
                     for child_j in range_j:
-                        temp = AnyNode(parent=cur_node, i=child_i, j=child_j, level=child_level, data=self.data[f'level_{child_level}'][child_i, child_j])
+                        temp_data = self.data[f'level_{child_level}'][child_i, child_j]
+                        if torch.all(temp_data == 0):
+                            continue
+                        temp = AnyNode(parent=cur_node, i=child_i, j=child_j, level=child_level, data=temp_data)
                         self._recursive_scan(temp)
                 else:
                     for child_j in reversed(range_j):
-                        temp = AnyNode(parent=cur_node, i=child_i, j=child_j, level=child_level, data=self.data[f'level_{child_level}'][child_i, child_j])
+                        temp_data = self.data[f'level_{child_level}'][child_i, child_j]
+                        if torch.all(temp_data == 0):
+                            continue
+                        temp = AnyNode(parent=cur_node, i=child_i, j=child_j, level=child_level, data=temp_data)
                         self._recursive_scan(temp)
 
 
@@ -204,10 +228,16 @@ class VerticalZigzagScan(AbstractScan):
             for count_j, child_j in enumerate(range_j):
                 if count_j % 2 == 0:
                     for child_i in range_i:
-                        temp = AnyNode(parent=cur_node, i=child_i, j=child_j, level=child_level, data=self.data[f'level_{child_level}'][child_i, child_j])
+                        temp_data = self.data[f'level_{child_level}'][child_i, child_j]
+                        if torch.all(temp_data == 0):
+                            continue
+                        temp = AnyNode(parent=cur_node, i=child_i, j=child_j, level=child_level, data=temp_data)
                 else:
                     for child_i in reversed(range_i):
-                        temp = AnyNode(parent=cur_node, i=child_i, j=child_j, level=child_level, data=self.data[f'level_{child_level}'][child_i, child_j])
+                        temp_data = self.data[f'level_{child_level}'][child_i, child_j]
+                        if torch.all(temp_data == 0):
+                            continue
+                        temp = AnyNode(parent=cur_node, i=child_i, j=child_j, level=child_level, data=temp_data)
             return
     
         # if the img is not the parent of leaves, recursively add the children
@@ -216,11 +246,17 @@ class VerticalZigzagScan(AbstractScan):
             for count_j, child_j in enumerate(range_j):
                 if count_j % 2 == 0:
                     for child_i in range_i:
-                        temp = AnyNode(parent=cur_node, i=child_i, j=child_j, level=child_level, data=self.data[f'level_{child_level}'][child_i, child_j])
+                        temp_data = self.data[f'level_{child_level}'][child_i, child_j]
+                        if torch.all(temp_data == 0):
+                            continue
+                        temp = AnyNode(parent=cur_node, i=child_i, j=child_j, level=child_level, data=temp_data)
                         self._recursive_scan(temp)
                 else:
                     for child_i in reversed(range_i):
-                        temp = AnyNode(parent=cur_node, i=child_i, j=child_j, level=child_level, data=self.data[f'level_{child_level}'][child_i, child_j])
+                        temp_data = self.data[f'level_{child_level}'][child_i, child_j]
+                        if torch.all(temp_data == 0):
+                            continue
+                        temp = AnyNode(parent=cur_node, i=child_i, j=child_j, level=child_level, data=temp_data)
                         self._recursive_scan(temp)
 
 

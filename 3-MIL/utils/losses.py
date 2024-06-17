@@ -98,30 +98,43 @@ class SupConLoss(nn.Module):
         return loss
 
 
-class CrossViewConsistency(nn.Module):
+class KLDivLoss(nn.Module):
     def __init__(self):
-        super(CrossViewConsistency, self).__init__()
+        super().__init__()
+        self.softmax = nn.Softmax(dim=-1)
+        self.criterion = nn.KLDivLoss(reduction='batchmean')
+
+    def forward(self, logits1, logits2):
+        assert logits1.size() == logits2.size(), f'logits1: {logits1.size()}, logits2: {logits2.size()}'
+        softmax1 = self.softmax(logits1)
+        softmax2 = self.softmax(logits2)
+
+        probability_loss = self.criterion(softmax1.log(), softmax2)
+        return probability_loss
+
+
+class L2Loss(nn.Module):
+    def __init__(self):
+        super().__init__()
     
-    def forward(self, features):
-        # features or logits: [1, n_views, C]
-        device = features.device
-        features = features.squeeze(0)
-        # features from different views shall be similar
-        view_sim = features.mm(features.t())
-        norm = torch.norm(features, p=1, dim=1, keepdim=True)
-        view_sim = view_sim / norm
-        # ground truth similarity matrix
-        gt_sim = torch.ones_like(view_sim) / view_sim.size(0)
-        gt_sim = gt_sim.to(device)
-
-        # mask out the diagnol
-        mask = torch.ones_like(view_sim) - torch.eye(view_sim.size(0)).to(device)
-        mask = mask.bool().to(device)
-
-        # compute the loss
-        loss = nn.functional.mse_loss(view_sim[mask], gt_sim[mask])
+    def forward(self, features1, features2):
+        loss = nn.functional.mse_loss(features1, features2)
         return loss
 
+
+class CrossViewConsistency(nn.Module):
+    def __init__(self, div='KL'):
+        super().__init__()
+        self.criteria = KLDivLoss() if div == 'KL' else L2Loss()
+    
+    def forward(self, features, moe):
+        # features or logits: [1, n_views, C]
+        # moe: [1, C]
+        ground_truth = moe.detach()
+        ground_truth.requires_grad = False
+        ground_truth = ground_truth.repeat(features.size(1), 1)
+        loss = self.criteria(features.squeeze(), ground_truth)
+        return loss
 
 class CrossSampleConsistency(nn.Module):
     def __init__(self, batch_size, world_size):
