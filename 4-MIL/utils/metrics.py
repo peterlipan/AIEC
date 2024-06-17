@@ -17,7 +17,7 @@ def compute_avg_metrics(ground_truth, activations, avg='micro'):
         auc = 0
     try:
         ap = average_precision_score(y_true=ground_truth, y_score=activations, average=avg)
-    except ValueError as error:
+    except Exception as error:
         print('Error in computing AP. Error msg:{}'.format(error))
         ap = 0
     bac = balanced_accuracy_score(y_true=ground_truth, y_pred=predictions)

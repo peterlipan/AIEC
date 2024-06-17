@@ -124,7 +124,6 @@ if __name__ == '__main__':
     os.environ["CUDA_VISIBLE_DEVICES"] = args.visible_gpus
     os.environ['MASTER_ADDR'] = 'localhost'
     os.environ['MASTER_PORT'] = '12345'
-    torch.autograd.set_detect_anomaly(True)
 
     # check checkpoints path
     if not os.path.exists(args.checkpoints):

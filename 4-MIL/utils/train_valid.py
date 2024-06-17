@@ -250,7 +250,7 @@ def valid_experts(epoch, dataloader, model):
     return return_dict
 
 def write_csv(epoch, names, preds, labels):
-    path = '/mnt/zhen_chen/AIEC/3-MIL/results.csv'
+    path = '/mnt/zhen_chen/AIEC/4-MIL/results.csv'
     if not os.path.exists(path):
         df = pd.DataFrame({'WSI': names, 'Label': labels, f'Epoch_{epoch}': preds})
     else:

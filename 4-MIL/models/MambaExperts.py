@@ -126,7 +126,7 @@ class MambaExperts(nn.Module):
             temp = MyMamba.from_pretrained(self.pretrained, config=self.config) if pretrained else self.single_expert()
             self.experts.append(temp)
             
-        self.classifier = nn.Linear(self.d_model, n_classes)
+        self.classifier = nn.Linear(self.d_model, n_classes + 3)
         self.aggregate = Aggregator(aggregation)
         self.apply(self.initialize_weights)
     
