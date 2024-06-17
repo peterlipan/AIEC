@@ -1,10 +1,10 @@
 # distributed training
 nodes: 1
-gpus: 8
+gpus: 4
 nr: 0
 dataparallel: 0
 workers: 8
-visible_gpus: "0,1,2,3,4,5,6,7"
+visible_gpus: "0,1,2,3"
 
 # Paths
 data_root: "/mnt/zhen_chen/pyramid_features_512"
@@ -35,11 +35,11 @@ pretrained: "state-spaces/mamba-130m-hf"
 seed: 42
 batch_size: 1
 epochs: 100
-fold: 0
+fold: 2
 
 # optimizer options
 opt: "adamw"
-lr: 1.0e-3
+lr: 2.0e-4
 scheduler: True
 weight_decay: 0.01
 warmup_epochs: 15

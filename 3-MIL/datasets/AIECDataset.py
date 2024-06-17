@@ -48,6 +48,7 @@ class AIECPyramidDataset(Dataset):
     def __getitem__(self, idx):
         suffix = '.h5' if self.use_h5 else '.pt'
         subfolder = 'h5_files' if self.use_h5 else 'pt_files'
+        wsi_name = self.slide_idx[idx]
         file_path = os.path.join(self.data_root, self.diagnosis[idx], subfolder, self.slide_idx[idx] + suffix)
         features = torch.load(file_path)
         if self.transforms is not None:
@@ -57,4 +58,4 @@ class AIECPyramidDataset(Dataset):
             else:
                 features = self.transforms(features)
         label = self.labels[idx]
-        return features, label
+        return wsi_name, features, label

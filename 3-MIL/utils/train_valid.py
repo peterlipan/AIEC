@@ -3,6 +3,7 @@ import torch
 import wandb
 import time
 import numpy as np
+import pandas as pd
 import torch.backends.cudnn as cudnn
 import torch.nn.functional as F
 import torch.distributed as dist
@@ -25,7 +26,7 @@ def train(dataloaders, model, criteria, optimizer, scheduler, args, logger):
     for epoch in range(args.epochs):
         if isinstance(train_loader.sampler, DistributedSampler):
             train_loader.sampler.set_epoch(epoch)
-        for i, (img, label) in enumerate(train_loader):
+        for i, (_, img, label) in enumerate(train_loader):
             img, label = img.cuda(non_blocking=True), label.cuda(non_blocking=True).long()
             outputs = model(img)
             features, logits = outputs.features, outputs.logits
@@ -103,7 +104,7 @@ def validate(dataloader, model):
     predictions = torch.Tensor().cuda()
 
     with torch.no_grad():
-        for img, label in dataloader:
+        for _, img, label in dataloader:
             img, label = img.cuda(non_blocking=True), label.cuda(non_blocking=True).long()
             outputs = model(img)
             logits = outputs.logits
@@ -129,7 +130,7 @@ def train_experts(dataloaders, model, criteria, optimizer, scheduler, args, logg
     for epoch in range(args.epochs):
         if isinstance(train_loader.sampler, DistributedSampler):
             train_loader.sampler.set_epoch(epoch)
-        for i, (img, label) in enumerate(train_loader):
+        for i, (_, img, label) in enumerate(train_loader):
             img, label = img.cuda(non_blocking=True), label.cuda(non_blocking=True).long()
             outputs = model(img)
             features, logits, moe_features, moe_logits = outputs.features, outputs.logits, outputs.moe_features, outputs.moe_logits
@@ -160,7 +161,7 @@ def train_experts(dataloaders, model, criteria, optimizer, scheduler, args, logg
             if args.rank == 0:
                 if cur_iter % 50 == 0:
                     cur_lr = optimizer.param_groups[0]['lr']
-                    test_performance = valid_experts(test_loader, model)
+                    test_performance = valid_experts(epoch, test_loader, model)
                     if logger is not None:
                         logger.log({'test': test_performance,
                                     'train': {'loss': train_loss,
@@ -175,7 +176,7 @@ def train_experts(dataloaders, model, criteria, optimizer, scheduler, args, logg
 
     # validate and save the model
     if args.rank == 0:
-        test_performance = valid_experts(test_loader, model)
+        test_performance = valid_experts(epoch, test_loader, model)
         if logger is not None:
             logger.log({'test': test_performance})
         print(f"\nFold {args.fold}, Test Accuracy: {test_acc}, Test F1: {test_f1}, Test AUC: {test_auc}, "
@@ -188,30 +189,36 @@ def train_experts(dataloaders, model, criteria, optimizer, scheduler, args, logg
         torch.save(state_dict, model_path)
 
 
-def valid_experts(dataloader, model):
+def valid_experts(epoch, dataloader, model):
+
     training = model.training
     model.eval()
 
     ground_truth = torch.Tensor().cuda()
-    predictions = torch.Tensor().cuda()
-    exp_preds = torch.Tensor().cuda()
+    moe_probs = torch.Tensor().cuda()
+    exp_probs = torch.Tensor().cuda()
+
+    wsi_names = []
 
     return_dict = {}
 
     with torch.no_grad():
-        for img, label in dataloader:
+        for name, img, label in dataloader:
             img, label = img.cuda(non_blocking=True), label.cuda(non_blocking=True).long()
             outputs = model(img)
-            logits = outputs.logits
+            logits, moe_logits = outputs.logits, outputs.moe_logits
             # logts: [B, n_experts, n_classes]
-            pred = F.softmax(logits, dim=-1)
-            exp_preds = torch.cat((exp_preds, pred))
-            pred = torch.mean(pred, dim=1)
-            ground_truth = torch.cat((ground_truth, label))
-            predictions = torch.cat((predictions, pred))
+            exp_prob = F.softmax(logits, dim=-1)
+            exp_probs = torch.cat((exp_probs, exp_prob))
 
-        for i in range(exp_preds.shape[1]):
-            acc, f1, auc, ap, bac, sens, spec, prec, mcc, kappa = compute_avg_metrics(ground_truth, exp_preds[:, i, :], avg='micro')
+            moe_prob = F.softmax(moe_logits, dim=-1)
+            moe_probs = torch.cat((moe_probs, moe_prob))
+            ground_truth = torch.cat((ground_truth, label))
+            wsi_names.extend(name)
+            
+
+        for i in range(exp_probs.shape[1]):
+            acc, f1, auc, ap, bac, sens, spec, prec, mcc, kappa = compute_avg_metrics(ground_truth, exp_probs[:, i, :], avg='macro')
             return_dict[f'Expert_{i}'] = {'Accuracy': acc,
                                           'F1 score': f1,
                                           'AUC': auc,
@@ -222,7 +229,7 @@ def valid_experts(dataloader, model):
                                           'Precision': prec,
                                           'MCC': mcc,
                                           'Kappa': kappa}
-        acc, f1, auc, ap, bac, sens, spec, prec, mcc, kappa = compute_avg_metrics(ground_truth, predictions, avg='micro')
+        acc, f1, auc, ap, bac, sens, spec, prec, mcc, kappa = compute_avg_metrics(ground_truth, moe_probs, avg='macro')
         return_dict['Overall'] = {'Accuracy': acc,
                                   'F1 score': f1,
                                   'AUC': auc,
@@ -233,5 +240,22 @@ def valid_experts(dataloader, model):
                                   'Precision': prec,
                                   'MCC': mcc,
                                   'Kappa': kappa}
+
+        moe_preds = moe_probs.argmax(dim=-1).cpu().detach().tolist()
+        ground_truth = ground_truth.cpu().detach().tolist()
+        write_csv(epoch, wsi_names, moe_preds, ground_truth)
+
+
     model.train(training)
     return return_dict
+
+def write_csv(epoch, names, preds, labels):
+    path = '/mnt/zhen_chen/AIEC/3-MIL/results.csv'
+    if not os.path.exists(path):
+        df = pd.DataFrame({'WSI': names, 'Label': labels, f'Epoch_{epoch}': preds})
+    else:
+        df = pd.read_csv(path)
+        assert names == df['WSI'].tolist(), 'WSI names do not match'
+        assert labels == df['Label'].tolist(), 'Labels do not match'
+        df[f'Epoch_{epoch}'] = preds
+    df.to_csv(path, index=False)
