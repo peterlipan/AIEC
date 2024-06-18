@@ -1,9 +1,11 @@
 import os
+import numpy as np
 import pandas as pd
 from PIL import Image
 import albumentations as A
 import torchvision.transforms as T
 from torch.utils.data import Dataset
+from albumentations.pytorch import ToTensorV2
 
 
 class Transforms:
@@ -68,7 +70,7 @@ class Transforms:
 
 
 class PatchDataset(Dataset):
-    def __init__(self, csv_path, data_root, num_levels, transforms):
+    def __init__(self, csv_path, transforms):
         self.patch_info = pd.read_csv(csv_path)
         self.paths = self.patch_info['path'].values
         self.labels = self.patch_info['label'].values
@@ -81,7 +83,7 @@ class PatchDataset(Dataset):
     def __getitem__(self, idx):
         img_path = self.paths[idx]
         label = self.labels[idx]
-        image = Image.open(img_path)
+        image = Image.open(img_path).convert('RGB')
         if self.transforms:
             image = self.transforms(image)
         return image, label
