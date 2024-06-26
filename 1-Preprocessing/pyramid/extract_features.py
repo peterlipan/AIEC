@@ -12,7 +12,7 @@ from dataset_helpers import Whole_Slide_Bag
 from feature_extractors import get_encoder
 from torch.nn.parallel import DistributedDataParallel as DDP
 
-VISIBLE_GPU = '0,1,2,3,4,5'
+VISIBLE_GPU = '4,5,6,7'
 
 
 def extract_features(model, level_shapes, feature_dim, dataloader):
@@ -49,7 +49,12 @@ def main(rank, csv, args):
     dist.init_process_group("nccl", rank=rank, world_size=args.world_size)
     torch.cuda.set_device(rank)
 
-    model, feature_dim, transforms = get_encoder(args.backbone, target_img_size=args.patch_size)
+    finetuned_model_path = f"/mnt/zhen_chen/AIEC/3-PLIP/best_{args.backbone}.pth"
+    if not os.path.exists(finetuned_model_path):
+        finetuned_model_path = ''
+        
+
+    model, feature_dim, transforms = get_encoder(args.backbone, target_img_size=args.patch_size, finetuned=finetuned_model_path)
     model = model.cuda()
     # parallel
     model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
@@ -87,8 +92,8 @@ if __name__ == '__main__':
     parser.add_argument('--csv_path', type=str, default='/mnt/zhen_chen/pyramid_patches_512/status.csv')
     parser.add_argument('--wsi_dir', type=str, default='/mnt/zhen_chen/AIEC_tiff')
     parser.add_argument('--h5_dir', type=str, default='/mnt/zhen_chen/pyramid_patches_512')
-    parser.add_argument('--save_dir', type=str, default='/mnt/zhen_chen/pyramid_features_512')
-    parser.add_argument('--backbone', type=str, default='densenet121')
+    parser.add_argument('--save_dir', type=str, default='/mnt/zhen_chen/pyramid_features_512_PLIP')
+    parser.add_argument('--backbone', type=str, default='resnet50')
     parser.add_argument('--patch_size', type=int, default=512)
     parser.add_argument('--batch_size', type=int, default=256)
     parser.add_argument('--num_workers', type=int, default=0)

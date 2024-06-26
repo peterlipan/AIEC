@@ -1,47 +1,47 @@
 # distributed training
 nodes: 1
-gpus: 4
+gpus: 6
 nr: 0
 dataparallel: 0
 workers: 8
-visible_gpus: "0,1,2,3"
+visible_gpus: "2,3,4,5,6,7"
 
 # Paths
-data_root: "/mnt/zhen_chen/pyramid_features_512"
+data_root: "/mnt/zhen_chen/pyramid_features_512_PLIP"
 csv_path: "./aiec_info.csv"
 checkpoints: "./checkpoints"
 
 # Dataset Options
 dataset: "AIEC"
-feature_dim: 1024
+feature_dim: 2048
 KFold: 5
-num_levels: 3
+num_levels: 2
 lowest_level: 0
 downsample_factor: 4
 
 # Model options
-backbone: "Experts"
+backbone: "Transformer"
 n_experts: 8
 dropout: 0.3
 activation: "gelu"
-num_layers: 12
+num_layers: 2
 num_heads: 8
-d_model: 512
+d_model: 128
 d_state: 8
 agg: 'avg'
-pretrained: "state-spaces/mamba-130m-hf"
+pretrained: ""
 
 # training options
 seed: 42
 batch_size: 1
-epochs: 100
+epochs: 200
 fold: 2
 
 # optimizer options
 opt: "adamw"
-lr: 2.0e-4
+lr: 2.0e-3
 scheduler: True
-weight_decay: 0.01
+weight_decay: 0.06
 warmup_epochs: 15
-lambda_xsam: 0.05
-lambda_xview: 1.0e+3
+lambda_xsam: 0.1
+lambda_xview: 1.0e+5

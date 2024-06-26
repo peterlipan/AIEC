@@ -56,7 +56,7 @@ class TimmCNNEncoder(torch.nn.Module):
             out = self.pool(out).squeeze(-1).squeeze(-1)
         return out
 
-def TorchvisionCNNEncoder(backbone: str = 'resnet50'):
+def TorchvisionCNNEncoder(backbone: str = 'resnet50', finetuned: str = ''):
     model = getattr(models, backbone)(pretrained=True)
     if 'resnet' in backbone or 'resnext' in backbone:
         feature_dim = model.fc.in_features
@@ -67,7 +67,9 @@ def TorchvisionCNNEncoder(backbone: str = 'resnet50'):
     elif 'vit' in backbone:
         feature_dim = model.heads.head.in_features
         model.heads = Identity()
-    
+    if finetuned:
+        model.load_state_dict(torch.load(finetuned))
+        print(f'Loaded finetuned model from {finetuned}')
     return model, feature_dim
 
 def has_CONCH():
@@ -100,10 +102,10 @@ def has_UNI():
         print(e)
     return HAS_UNI, UNI_CKPT_PATH
 
-def get_encoder(model_name, target_img_size=512):
+def get_encoder(model_name, target_img_size=512, finetuned=''):
     custom_models = ['uni_v1', 'conch_v1']
     if model_name not in custom_models:
-        model, feature_dim = TorchvisionCNNEncoder(model_name)
+        model, feature_dim = TorchvisionCNNEncoder(model_name, finetuned)
     elif model_name == 'uni_v1':
         feature_dim = 1024
         HAS_UNI, UNI_CKPT_PATH = has_UNI()

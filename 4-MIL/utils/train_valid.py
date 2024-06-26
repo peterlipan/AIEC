@@ -137,11 +137,12 @@ def train_experts(dataloaders, model, criteria, optimizer, scheduler, args, logg
 
             # classification loss
             xview_logits_loss = xview_KL(logits, moe_logits)
+            xsam_feature_loss = xsample(features, label)
 
             cls_loss = criteria(logits.view(args.n_experts, -1), label.repeat(args.n_experts))
             overall_cls_loss = criteria(moe_logits, label)
             # print(xsam_feature_loss.item(), xsam_logits_loss.item(), xview_feature_loss.item(), xview_logits_loss.item(), cls_loss.item(), overall_cls_loss.item())
-            loss = cls_loss + overall_cls_loss + args.lambda_xview * xview_logits_loss
+            loss = cls_loss + overall_cls_loss + args.lambda_xview * xview_logits_loss + args.lambda_xsam * xsam_feature_loss
 
 
             if args.rank == 0:
@@ -166,6 +167,7 @@ def train_experts(dataloaders, model, criteria, optimizer, scheduler, args, logg
                         logger.log({'test': test_performance,
                                     'train': {'loss': train_loss,
                                               'xview_logits_loss': args.lambda_xview * xview_logits_loss.item(),
+                                              'xsam_feature_loss': args.lambda_xsam * xsam_feature_loss.item(),
                                               'expert_cls_loss': cls_loss.item(),
                                               'overall_cls_loss': overall_cls_loss.item(),
                                               'learning_rate': cur_lr}}, )
