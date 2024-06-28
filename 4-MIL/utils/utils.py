@@ -44,7 +44,7 @@ class Aggregator(nn.Module):
             x = torch.bmm(A, x)
             x = x.squeeze(0)
         elif self.aggregation == 'cls_token':
-            x = x[:, 0, :]
+            x = x[..., -1, :]
         return x
 
 

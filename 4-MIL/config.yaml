@@ -15,33 +15,33 @@ checkpoints: "./checkpoints"
 dataset: "AIEC"
 feature_dim: 2048
 KFold: 5
-num_levels: 2
-lowest_level: 0
+num_levels: 3
+lowest_level: 2
 downsample_factor: 4
 
 # Model options
-backbone: "Transformer"
+backbone: "Experts"
 n_experts: 8
-dropout: 0.3
+dropout: 0.5
 activation: "gelu"
-num_layers: 2
+num_layers: 24
 num_heads: 8
 d_model: 128
 d_state: 8
 agg: 'avg'
-pretrained: ""
+pretrained: "state-spaces/mamba-130m-hf"
 
 # training options
 seed: 42
 batch_size: 1
 epochs: 200
-fold: 2
+fold: 0
 
 # optimizer options
 opt: "adamw"
-lr: 2.0e-3
+lr: 2.0e-4
 scheduler: True
-weight_decay: 0.06
+weight_decay: 0.05
 warmup_epochs: 15
 lambda_xsam: 0.1
-lambda_xview: 1.0e+5
+lambda_xview: 1.0e+3

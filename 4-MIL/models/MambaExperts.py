@@ -119,8 +119,7 @@ class MambaExperts(nn.Module):
         self.experts = nn.ModuleList()
         self.pretrained = pretrained
 
-        if aggregation == 'cls_token':
-            self.cls_token = nn.Parameter(torch.randn(1, 1, d_model))
+        self.aggregation = aggregation
 
         for _ in range(n_experts):
             temp = MyMamba.from_pretrained(self.pretrained, config=self.config) if pretrained else self.single_expert()
@@ -171,7 +170,7 @@ class MambaExperts(nn.Module):
         features = torch.stack(features, dim=1)
         logits = torch.stack(logits, dim=1)
 
-        moe_features = self.aggregate(features)
+        moe_features = features.mean(dim=1)
         moe_logits = self.classifier(moe_features)
 
         return ModelOutputs(features=features, logits=logits, moe_features=moe_features, moe_logits=moe_logits)

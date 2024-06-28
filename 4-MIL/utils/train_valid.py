@@ -141,9 +141,12 @@ def train_experts(dataloaders, model, criteria, optimizer, scheduler, args, logg
 
             cls_loss = criteria(logits.view(args.n_experts, -1), label.repeat(args.n_experts))
             overall_cls_loss = criteria(moe_logits, label)
+            loss  = cls_loss + overall_cls_loss
             # print(xsam_feature_loss.item(), xsam_logits_loss.item(), xview_feature_loss.item(), xview_logits_loss.item(), cls_loss.item(), overall_cls_loss.item())
-            loss = cls_loss + overall_cls_loss + args.lambda_xview * xview_logits_loss + args.lambda_xsam * xsam_feature_loss
-
+            if args.lambda_xview:
+                loss += args.lambda_xview * xview_logits_loss
+            if args.lambda_xsam:
+                loss += args.lambda_xsam * xsam_feature_loss
 
             if args.rank == 0:
                 train_loss = loss.item()
