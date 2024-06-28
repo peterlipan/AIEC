@@ -1,0 +1,46 @@
+# distributed training
+nodes: 1
+gpus: 6
+nr: 0
+dataparallel: 0
+workers: 8
+visible_gpus: "2,3,4,5,6,7"
+
+# Paths
+data_root: "/mnt/zhen_chen/features_CAMELYON16/pt_files"
+csv_path: "/mnt/zhen_chen/features_CAMELYON16/reference.csv"
+checkpoints: "./checkpoints"
+
+# Dataset Options
+dataset: "CAMELYON16"
+feature_dim: 1024
+num_levels: 3
+lowest_level: 0
+downsample_factor: 4
+
+# Model options
+backbone: "Experts"
+n_experts: 8
+dropout: 0.5
+activation: "gelu"
+num_layers: 24
+num_heads: 8
+d_model: 128
+d_state: 8
+agg: 'avg'
+pretrained: "state-spaces/mamba-130m-hf"
+
+# training options
+seed: 42
+batch_size: 1
+epochs: 200
+fold: 0
+
+# optimizer options
+opt: "adamw"
+lr: 2.0e-4
+scheduler: True
+weight_decay: 0.05
+warmup_epochs: 15
+lambda_xsam: 0.1
+lambda_xview: 1.0e+3

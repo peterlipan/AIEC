@@ -112,6 +112,7 @@ class LevelPatchDataset(Dataset):
     @staticmethod
     def transform(images):
         transform = transforms.Compose([
+            transforms.Resize((224, 224)),
             transforms.ToTensor()
         ])
         return transform(images)
