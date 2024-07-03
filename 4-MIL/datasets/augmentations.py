@@ -4,6 +4,15 @@ import numpy as np
 from anytree import AnyNode, PreOrderIter, LevelOrderIter, RenderTree
 
 
+class MyNode(AnyNode):
+    def drop(self):
+        # remove the current node and its children from the tree
+        self.parent = None
+        for child in self.children:
+            child.drop()
+        del self
+
+
 class AbstractScan(object):
     def __init__(self, num_levels, downsample_factor, lowest_level=0, p=1, p_i=.5, p_j=.5):
         self.num_levels = num_levels
@@ -15,7 +24,7 @@ class AbstractScan(object):
         self.reverse_i = False
         self.reverse_j = False
     
-    def _recursive_scan(self):
+    def _recursive_scan(self, cur_node: MyNode):
         raise NotImplementedError("Subclasses should implement this!")
     
     def __call__(self, data):
@@ -25,7 +34,7 @@ class AbstractScan(object):
             self.reverse_j = True
 
         self.data = data
-        root = AnyNode(i=0, j=0, level=self.num_levels, data=data['overview'][0,0])
+        root = MyNode(i=0, j=0, level=self.num_levels, data=data['overview'][0,0])
         self._recursive_scan(root)
         return root
 
@@ -33,7 +42,7 @@ class AbstractScan(object):
 class HorizontalRasterScan(AbstractScan):
 
     # recursively build tree in the horizontal direction of each level
-    def _recursive_scan(self, cur_node: AnyNode):
+    def _recursive_scan(self, cur_node: MyNode):
         # spatial information of the current node
         cur_level = cur_node.level
         cur_i = cur_node.i
@@ -65,7 +74,7 @@ class HorizontalRasterScan(AbstractScan):
                     temp_data = self.data[f'level_{child_level}'][child_i, child_j]
                     if torch.all(temp_data == 0):
                         continue
-                    temp = AnyNode(parent=cur_node, i=child_i, j=child_j, level=child_level, data=temp_data)
+                    temp = MyNode(parent=cur_node, i=child_i, j=child_j, level=child_level, data=temp_data)
             return 
 
         # if the img is not the parent of leaves, recursively add the children
@@ -76,14 +85,14 @@ class HorizontalRasterScan(AbstractScan):
                     temp_data = self.data[f'level_{child_level}'][child_i, child_j]
                     if torch.all(temp_data == 0):
                         continue
-                    temp = AnyNode(parent=cur_node, i=child_i, j=child_j, level=child_level, data=temp_data)
+                    temp = MyNode(parent=cur_node, i=child_i, j=child_j, level=child_level, data=temp_data)
                     self._recursive_scan(temp)
 
 
 class VerticalRasterScan(AbstractScan):
 
     # recursively build tree in the vertical direction of each level
-    def _recursive_scan(self, cur_node: AnyNode):
+    def _recursive_scan(self, cur_node: MyNode):
         # spatial information of the current node
         cur_level = cur_node.level
         cur_i = cur_node.i
@@ -115,7 +124,7 @@ class VerticalRasterScan(AbstractScan):
                     temp_data = self.data[f'level_{child_level}'][child_i, child_j]
                     if torch.all(temp_data == 0):
                         continue
-                    temp = AnyNode(parent=cur_node, i=child_i, j=child_j, level=child_level, data=temp_data)
+                    temp = MyNode(parent=cur_node, i=child_i, j=child_j, level=child_level, data=temp_data)
             return 
 
         # if the img is not the parent of leaves, recursively add the children
@@ -126,14 +135,14 @@ class VerticalRasterScan(AbstractScan):
                     temp_data = self.data[f'level_{child_level}'][child_i, child_j]
                     if torch.all(temp_data == 0):
                         continue
-                    temp = AnyNode(parent=cur_node, i=child_i, j=child_j, level=child_level, data=temp_data)
+                    temp = MyNode(parent=cur_node, i=child_i, j=child_j, level=child_level, data=temp_data)
                     self._recursive_scan(temp)
 
 
 class HorizontalZigzagScan(AbstractScan):
         
     # recursively build tree in the horizontal direction of each level
-    def _recursive_scan(self, cur_node: AnyNode):
+    def _recursive_scan(self, cur_node: MyNode):
         # spatial information of the current node
         cur_level = cur_node.level
         cur_i = cur_node.i
@@ -166,13 +175,13 @@ class HorizontalZigzagScan(AbstractScan):
                         temp_data = self.data[f'level_{child_level}'][child_i, child_j]
                         if torch.all(temp_data == 0):
                             continue
-                        temp = AnyNode(parent=cur_node, i=child_i, j=child_j, level=child_level, data=temp_data)
+                        temp = MyNode(parent=cur_node, i=child_i, j=child_j, level=child_level, data=temp_data)
                 else:
                     for child_j in reversed(range_j):
                         temp_data = self.data[f'level_{child_level}'][child_i, child_j]
                         if torch.all(temp_data == 0):
                             continue
-                        temp = AnyNode(parent=cur_node, i=child_i, j=child_j, level=child_level, data=temp_data)
+                        temp = MyNode(parent=cur_node, i=child_i, j=child_j, level=child_level, data=temp_data)
             return
 
         # if the img is not the parent of leaves, recursively add the children
@@ -184,21 +193,21 @@ class HorizontalZigzagScan(AbstractScan):
                         temp_data = self.data[f'level_{child_level}'][child_i, child_j]
                         if torch.all(temp_data == 0):
                             continue
-                        temp = AnyNode(parent=cur_node, i=child_i, j=child_j, level=child_level, data=temp_data)
+                        temp = MyNode(parent=cur_node, i=child_i, j=child_j, level=child_level, data=temp_data)
                         self._recursive_scan(temp)
                 else:
                     for child_j in reversed(range_j):
                         temp_data = self.data[f'level_{child_level}'][child_i, child_j]
                         if torch.all(temp_data == 0):
                             continue
-                        temp = AnyNode(parent=cur_node, i=child_i, j=child_j, level=child_level, data=temp_data)
+                        temp = MyNode(parent=cur_node, i=child_i, j=child_j, level=child_level, data=temp_data)
                         self._recursive_scan(temp)
 
 
 class VerticalZigzagScan(AbstractScan):
 
     # recursively build tree in the vertical direction of each level
-    def _recursive_scan(self, cur_node: AnyNode):
+    def _recursive_scan(self, cur_node: MyNode):
         # spatial information of the current node
         cur_level = cur_node.level
         cur_i = cur_node.i
@@ -231,13 +240,13 @@ class VerticalZigzagScan(AbstractScan):
                         temp_data = self.data[f'level_{child_level}'][child_i, child_j]
                         if torch.all(temp_data == 0):
                             continue
-                        temp = AnyNode(parent=cur_node, i=child_i, j=child_j, level=child_level, data=temp_data)
+                        temp = MyNode(parent=cur_node, i=child_i, j=child_j, level=child_level, data=temp_data)
                 else:
                     for child_i in reversed(range_i):
                         temp_data = self.data[f'level_{child_level}'][child_i, child_j]
                         if torch.all(temp_data == 0):
                             continue
-                        temp = AnyNode(parent=cur_node, i=child_i, j=child_j, level=child_level, data=temp_data)
+                        temp = MyNode(parent=cur_node, i=child_i, j=child_j, level=child_level, data=temp_data)
             return
     
         # if the img is not the parent of leaves, recursively add the children
@@ -249,14 +258,14 @@ class VerticalZigzagScan(AbstractScan):
                         temp_data = self.data[f'level_{child_level}'][child_i, child_j]
                         if torch.all(temp_data == 0):
                             continue
-                        temp = AnyNode(parent=cur_node, i=child_i, j=child_j, level=child_level, data=temp_data)
+                        temp = MyNode(parent=cur_node, i=child_i, j=child_j, level=child_level, data=temp_data)
                         self._recursive_scan(temp)
                 else:
                     for child_i in reversed(range_i):
                         temp_data = self.data[f'level_{child_level}'][child_i, child_j]
                         if torch.all(temp_data == 0):
                             continue
-                        temp = AnyNode(parent=cur_node, i=child_i, j=child_j, level=child_level, data=temp_data)
+                        temp = MyNode(parent=cur_node, i=child_i, j=child_j, level=child_level, data=temp_data)
                         self._recursive_scan(temp)
 
 
@@ -264,18 +273,18 @@ class AbstractReadout(object):
     def __init__(self, p=1):
         self.p = p
     
-    def _readout_func(self, data):
+    def _readout_func(self, x):
         raise NotImplementedError("Subclasses should implement this!")
     
-    def __call__(self, data):
-        return self._readout_func(data)
+    def __call__(self, x):
+        return self._readout_func(x)
 
 
 class DepthFirstReadout(AbstractReadout):
     
-    def _readout_func(self, data):
+    def _readout_func(self, x):
         # drop the pseudo root node
-        return torch.stack([node.data for node in PreOrderIter(data)])
+        return torch.stack([x.data for x in PreOrderIter(x)])
 
 
 class BreadthFirstReadout(AbstractReadout):
@@ -292,9 +301,9 @@ class OneOf(object):
         s = sum(transforms_ps)
         self.transforms_ps = [t / s for t in transforms_ps]
 
-    def __call__(self, data):
+    def __call__(self, x):
         transform = np.random.choice(self.transforms, p=self.transforms_ps)
-        return transform(data)
+        return transform(x)
 
 
 class Compose(object):
@@ -304,10 +313,10 @@ class Compose(object):
     def __init__(self, transforms):
         self.transforms = transforms
     
-    def __call__(self, data):
+    def __call__(self, x):
         for t in self.transforms:
-            data = t(data)
-        return data
+            x = t(x)
+        return x
 
 
 def get_train_transforms(num_levels, downsample_factor, lowest_level):
@@ -332,16 +341,33 @@ def get_test_transforms(num_levels, downsample_factor, lowest_level):
     ])
 
 
-def experts_train_transforms(n_experts, num_levels, downsample_factor, lowest_level):
+class TreeDropOut:
+    def __init__(self, num_levels: int, probs: list):
+        self.num_levels = num_levels
+        self.probs = probs
+        assert len(probs) == num_levels, 'The number of probabilities should be equal to the number of levels'
+
+    def __call__(self, root):
+        for i in reversed(range(self.num_levels)):
+            nodes = [node for node in LevelOrderIter(root) if node.level == i]
+            for n in nodes:
+                if random.random() < self.probs[i]:
+                    n.drop()
+        return root
+
+
+def experts_train_transforms(n_experts, num_levels, downsample_factor, lowest_level, dropout=None):
+    if dropout is None:
+        dropout = [0.1, 0.3, 0.5]
     available_transforms = [
-        Compose([HorizontalRasterScan(num_levels, downsample_factor, lowest_level), DepthFirstReadout()]),
-        Compose([VerticalRasterScan(num_levels, downsample_factor, lowest_level), DepthFirstReadout()]),
-        Compose([HorizontalZigzagScan(num_levels, downsample_factor, lowest_level), DepthFirstReadout()]),
-        Compose([VerticalZigzagScan(num_levels, downsample_factor, lowest_level), DepthFirstReadout()]),
-        Compose([HorizontalRasterScan(num_levels, downsample_factor, lowest_level), BreadthFirstReadout()]),
-        Compose([VerticalRasterScan(num_levels, downsample_factor, lowest_level), BreadthFirstReadout()]),
-        Compose([HorizontalZigzagScan(num_levels, downsample_factor, lowest_level), BreadthFirstReadout()]),
-        Compose([VerticalZigzagScan(num_levels, downsample_factor, lowest_level), BreadthFirstReadout()]),
+        Compose([HorizontalRasterScan(num_levels, downsample_factor, lowest_level), TreeDropOut(num_levels, dropout), DepthFirstReadout()]),
+        Compose([VerticalRasterScan(num_levels, downsample_factor, lowest_level), TreeDropOut(num_levels, dropout), DepthFirstReadout()]),
+        Compose([HorizontalZigzagScan(num_levels, downsample_factor, lowest_level), TreeDropOut(num_levels, dropout), DepthFirstReadout()]),
+        Compose([VerticalZigzagScan(num_levels, downsample_factor, lowest_level), TreeDropOut(num_levels, dropout), DepthFirstReadout()]),
+        Compose([HorizontalRasterScan(num_levels, downsample_factor, lowest_level), TreeDropOut(num_levels, dropout), BreadthFirstReadout()]),
+        Compose([VerticalRasterScan(num_levels, downsample_factor, lowest_level), TreeDropOut(num_levels, dropout), BreadthFirstReadout()]),
+        Compose([HorizontalZigzagScan(num_levels, downsample_factor, lowest_level), TreeDropOut(num_levels, dropout), BreadthFirstReadout()]),
+        Compose([VerticalZigzagScan(num_levels, downsample_factor, lowest_level), TreeDropOut(num_levels, dropout), BreadthFirstReadout()]),
     ]
 
     return available_transforms[:n_experts]
