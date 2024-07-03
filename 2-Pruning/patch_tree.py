@@ -93,9 +93,10 @@ class PatchTree:
 
 class LevelPatchDataset(Dataset):
 
-    def __init__(self, tree: MyNode, level: int):
+    def __init__(self, tree: MyNode, level: int, patch_size: int):
         self.tree = tree
         self.level = level
+        self.patch_size = patch_size
         self.node_list = [node for node in LevelOrderIter(tree.root) if node.level == level]
     
     def __len__(self):
@@ -109,10 +110,9 @@ class LevelPatchDataset(Dataset):
 
         return patch, filename, idx
 
-    @staticmethod
-    def transform(images):
+    def transform(self, images):
         transform = transforms.Compose([
-            transforms.Resize((224, 224)),
+            transforms.Resize((self.patch_size, self.patch_size)),
             transforms.ToTensor()
         ])
         return transform(images)

@@ -12,7 +12,7 @@ from dataset_helpers import Whole_Slide_Bag
 from feature_extractors import get_encoder
 from torch.nn.parallel import DistributedDataParallel as DDP
 
-VISIBLE_GPU = '4,5,6,7'
+VISIBLE_GPU = '0,1,2,3'
 
 
 def extract_features(model, level_shapes, feature_dim, dataloader):
@@ -46,13 +46,12 @@ def main(rank, csv, args):
     # fetch the rank-th subtable of the csv
     sub_csv = csv[rank]
 
-    dist.init_process_group("nccl", rank=rank, world_size=args.world_size)
+    dist.init_process_group("gloo", rank=rank, world_size=args.world_size)
     torch.cuda.set_device(rank)
 
     finetuned_model_path = f"/mnt/zhen_chen/AIEC/3-PLIP/best_{args.backbone}.pth"
     if not os.path.exists(finetuned_model_path):
         finetuned_model_path = ''
-        
 
     model, feature_dim, transforms = get_encoder(args.backbone, target_img_size=args.patch_size, finetuned=finetuned_model_path)
     model = model.cuda()
@@ -62,22 +61,20 @@ def main(rank, csv, args):
 
     for i in range(sub_csv.shape[0]):
         if sub_csv.iloc[i]['status'] == 'done':
-            subtype = sub_csv.iloc[i]['subtype']
             slide_id = sub_csv.iloc[i]['slide_id']
             slide_name = pathlib.Path(slide_id).stem
-            print(f'Processing {slide_name} of subtype {subtype}')
+            print(f'Processing {slide_name}...')
 
-            slide_path = os.path.join(args.wsi_dir, subtype, slide_id)
-            coord_path = os.path.join(args.h5_dir, subtype, 'coordinates', f'{slide_name}.h5')
-            patch_path = os.path.join(args.h5_dir, subtype, 'patches', slide_name)
-            save_path = os.path.join(args.save_dir, subtype, 'pt_files', f'{slide_name}.pt')
+            slide_path = os.path.join(args.wsi_dir, slide_id)
+            coord_path = os.path.join(args.h5_dir, 'coordinates', f'{slide_name}.h5')
+            patch_path = os.path.join(args.h5_dir, 'patches', slide_name)
+            save_path = os.path.join(args.save_dir, 'pt_files', f'{slide_name}.pt')
 
             if os.path.exists(save_path) and not args.no_skip:
                 print(f'{slide_name} already processed, skipping')
                 continue
             else:
                 os.makedirs(os.path.dirname(save_path), exist_ok=True)
-            
 
             slide_dataset = Whole_Slide_Bag(slide_path, coord_path, patch_path, img_transforms=transforms)
             dataloader = DataLoader(slide_dataset, batch_size=args.batch_size, num_workers=args.num_workers, shuffle=False, pin_memory=True)
@@ -89,12 +86,12 @@ def main(rank, csv, args):
             
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--csv_path', type=str, default='/mnt/zhen_chen/pyramid_patches_512/status.csv')
-    parser.add_argument('--wsi_dir', type=str, default='/mnt/zhen_chen/AIEC_tiff')
-    parser.add_argument('--h5_dir', type=str, default='/mnt/zhen_chen/pyramid_patches_512')
-    parser.add_argument('--save_dir', type=str, default='/mnt/zhen_chen/pyramid_features_512_PLIP')
-    parser.add_argument('--backbone', type=str, default='resnet50')
-    parser.add_argument('--patch_size', type=int, default=512)
+    parser.add_argument('--csv_path', type=str, default='/vast/palmer/scratch/liu_xiaofeng/xl693/li/patches_CAMELYON16/status.csv')
+    parser.add_argument('--wsi_dir', type=str, default='/vast/palmer/scratch/liu_xiaofeng/xl693/li/CAMELYON16')
+    parser.add_argument('--h5_dir', type=str, default='/vast/palmer/scratch/liu_xiaofeng/xl693/li/patches_CAMELYON16')
+    parser.add_argument('--save_dir', type=str, default='/vast/palmer/scratch/liu_xiaofeng/xl693/li/features_CAMELYON16')
+    parser.add_argument('--backbone', type=str, default='densenet121')
+    parser.add_argument('--patch_size', type=int, default=256)
     parser.add_argument('--batch_size', type=int, default=256)
     parser.add_argument('--num_workers', type=int, default=0)
     parser.add_argument('--no_skip', action='store_true')
