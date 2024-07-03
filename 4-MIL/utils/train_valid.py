@@ -140,17 +140,28 @@ def train_experts(dataloaders, model, criteria, optimizer, scheduler, args, logg
             features, logits, moe_features, moe_logits = outputs.features, outputs.logits, outputs.moe_features, outputs.moe_logits
 
             # classification loss
-            xview_logits_loss = xview_KL(logits, moe_logits)
-            xsam_feature_loss = xsample(features, label)
+            
+            
 
             cls_loss = criteria(logits.view(args.n_experts, -1), label.repeat(args.n_experts))
-            overall_cls_loss = criteria(moe_logits, label)
-            loss  = cls_loss + overall_cls_loss
+            loss  = cls_loss
+            train_overall_cls_loss = 0
+            train_logits_loss = 0
+            train_feature_loss = 0
             # print(xsam_feature_loss.item(), xsam_logits_loss.item(), xview_feature_loss.item(), xview_logits_loss.item(), cls_loss.item(), overall_cls_loss.item())
-            if args.lambda_xview:
-                loss += args.lambda_xview * xview_logits_loss
-            if args.lambda_xsam:
-                loss += args.lambda_xsam * xsam_feature_loss
+            if epoch > args.warmup_epochs:
+                overall_cls_loss = criteria(moe_logits, label)
+                train_overall_cls_loss = overall_cls_loss.item() * args.lambda_cls
+                loss += overall_cls_loss
+                if args.lambda_xview:
+                    xview_logits_loss = xview_KL(logits, moe_logits)
+                    train_logits_loss = xview_logits_loss.item() * args.lambda_xview
+                    loss += args.lambda_xview * xview_logits_loss
+                
+                if args.lambda_xsam:
+                    xsam_feature_loss = xsample(features, label)
+                    train_feature_loss = xsam_feature_loss.item() * args.lambda_xsam
+                    loss += args.lambda_xsam * xsam_feature_loss
 
             if args.rank == 0:
                 train_loss = loss.item()
@@ -173,10 +184,10 @@ def train_experts(dataloaders, model, criteria, optimizer, scheduler, args, logg
                     if logger is not None:
                         logger.log({'test': test_performance,
                                     'train': {'loss': train_loss,
-                                              'xview_logits_loss': args.lambda_xview * xview_logits_loss.item(),
-                                              'xsam_feature_loss': args.lambda_xsam * xsam_feature_loss.item(),
+                                              'xview_logits_loss': train_logits_loss,
+                                              'xsam_feature_loss': train_feature_loss,
                                               'expert_cls_loss': cls_loss.item(),
-                                              'overall_cls_loss': overall_cls_loss.item(),
+                                              'overall_cls_loss': train_overall_cls_loss,
                                               'learning_rate': cur_lr}}, )
 
                     print('\rEpoch: [%2d/%2d] Iter [%4d/%4d] || Time: %4.4f sec || lr: %.6f || Loss: %.4f' % (

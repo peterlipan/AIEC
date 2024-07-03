@@ -27,7 +27,7 @@ dropout: 0.5
 activation: "gelu"
 num_layers: 2
 num_heads: 8
-d_model: 128
+d_model: 256
 d_state: 8
 agg: 'avg'
 pretrained: ""
@@ -44,5 +44,6 @@ lr: 2.0e-4
 scheduler: True
 weight_decay: 0.05
 warmup_epochs: 15
-lambda_xsam: 0
+lambda_xsam: 0.1
 lambda_xview: 0
+lambda_cls: 0.5
