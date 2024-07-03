@@ -1,14 +1,14 @@
 # distributed training
 nodes: 1
-gpus: 6
+gpus: 4
 nr: 0
 dataparallel: 0
 workers: 8
-visible_gpus: "2,3,4,5,6,7"
+visible_gpus: "1,2,3,4"
 
 # Paths
 data_root: "/mnt/zhen_chen/features_CAMELYON16/pt_files"
-csv_path: "/mnt/zhen_chen/features_CAMELYON16/reference.csv"
+csv_path: "/mnt/zhen_chen/AIEC/4-MIL/reference.csv"
 checkpoints: "./checkpoints"
 
 # Dataset Options
@@ -19,16 +19,16 @@ lowest_level: 0
 downsample_factor: 4
 
 # Model options
-backbone: "Experts"
+backbone: "Transformer"
 n_experts: 8
 dropout: 0.5
 activation: "gelu"
-num_layers: 24
+num_layers: 2
 num_heads: 8
 d_model: 128
 d_state: 8
 agg: 'avg'
-pretrained: "state-spaces/mamba-130m-hf"
+pretrained: ""
 
 # training options
 seed: 42

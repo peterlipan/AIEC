@@ -1,10 +1,10 @@
 # distributed training
 nodes: 1
-gpus: 6
+gpus: 4
 nr: 0
 dataparallel: 0
 workers: 8
-visible_gpus: "2,3,4,5,6,7"
+visible_gpus: "0,1,2,3"
 
 # Paths
 data_root: "/mnt/zhen_chen/pyramid_features_512_PLIP"
