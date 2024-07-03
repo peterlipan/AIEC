@@ -131,7 +131,11 @@ def train_experts(dataloaders, model, criteria, optimizer, scheduler, args, logg
         if isinstance(train_loader.sampler, DistributedSampler):
             train_loader.sampler.set_epoch(epoch)
         for i, (_, img, label) in enumerate(train_loader):
-            img, label = img.cuda(non_blocking=True), label.cuda(non_blocking=True).long()
+            if isinstance(img, list):
+                img = [x.cuda(non_blocking=True) for x in img]
+            else:
+                img = img.cuda(non_blocking=True)
+            label = label.cuda(non_blocking=True).long()
             outputs = model(img)
             features, logits, moe_features, moe_logits = outputs.features, outputs.logits, outputs.moe_features, outputs.moe_logits
 
@@ -209,7 +213,11 @@ def valid_experts(epoch, dataloader, model):
 
     with torch.no_grad():
         for name, img, label in dataloader:
-            img, label = img.cuda(non_blocking=True), label.cuda(non_blocking=True).long()
+            if isinstance(img, list):
+                img = [x.cuda(non_blocking=True) for x in img]
+            else:
+                img = img.cuda(non_blocking=True)
+            label = label.cuda(non_blocking=True).long()
             outputs = model(img)
             logits, moe_logits = outputs.logits, outputs.moe_logits
             # logts: [B, n_experts, n_classes]

@@ -10,7 +10,7 @@ if __name__ == '__main__':
     groups = ['MMRd', 'NSMP', 'P53abn', 'POLEmut']
     df = pd.DataFrame(columns=['patient_id', 'slide_id', 'diagnosis', 'level_0', 'level_1', 'level_2'])
     for item in groups:
-        subpath = os.path.join('/mnt/zhen_chen/pyramid_features_512', item, 'pt_files')
+        subpath = os.path.join('/mnt/zhen_chen/pyramid_features_512_PLIP', item, 'pt_files')
         filenames = [f for f in os.listdir(subpath) if f.endswith('.pt')]
         for f in filenames:
             features = torch.load(os.path.join(subpath, f))
@@ -27,4 +27,4 @@ if __name__ == '__main__':
                 continue
             
             df = df._append(row, ignore_index=True)
-    df.to_csv('/mnt/zhen_chen/AIEC/3-MIL/aiec_info.csv', index=False)
+    df.to_csv('/mnt/zhen_chen/AIEC/4-MIL/aiec_info.csv', index=False)

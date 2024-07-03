@@ -154,15 +154,15 @@ class MambaExperts(nn.Module):
                 nn.init.constant_(m.weight, 1.0)
 
     def forward(self, x):
-        # x: [B, n_views, L, C]
-        device = x.device
+        # x: list, [n_views, 1, L, C]
+        device = x[0].device
         # features: [B, n_views, d_model]
         # logits: [B, n_views, n_classes]
         features = []
         logits = []
-        x = self._fc1(x)
+        x = [self._fc1(item) for item in x]
         for i, expert in enumerate(self.experts):
-            exp = expert(x[:, i, :, :])
+            exp = expert(x[i])
             exp = self.aggregate(exp)
             pred = self.classifier(exp)
             features.append(exp)

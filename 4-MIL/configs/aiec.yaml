@@ -4,7 +4,7 @@ gpus: 4
 nr: 0
 dataparallel: 0
 workers: 8
-visible_gpus: "0,1,2,3"
+visible_gpus: "0,5,6,7"
 
 # Paths
 data_root: "/mnt/zhen_chen/pyramid_features_512_PLIP"
@@ -44,5 +44,5 @@ lr: 2.0e-4
 scheduler: True
 weight_decay: 0.05
 warmup_epochs: 15
-lambda_xsam: 0.1
-lambda_xview: 1.0e+3
+lambda_xsam: 0
+lambda_xview: 0

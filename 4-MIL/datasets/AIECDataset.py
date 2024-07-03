@@ -54,7 +54,7 @@ class AIECPyramidDataset(Dataset):
         if self.transforms is not None:
             # if a list of transforms, implement MoE
             if isinstance(self.transforms, list):
-                features = torch.stack([transform(features) for transform in self.transforms], dim=0)
+                features = [transform(features) for transform in self.transforms]
             else:
                 features = self.transforms(features)
         label = self.labels[idx]
