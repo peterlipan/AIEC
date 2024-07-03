@@ -401,8 +401,10 @@ if __name__ == '__main__':
     data['overview'] = torch.randn((1,1))
     
     scan = HorizontalRasterScan(num_levels=3, downsample_factor=3, lowest_level=0, p_i=0.5, p_j=0.5)
+    drop = TreeDropOut(3, [0.1, 0.2, 0.3])
     readout = BreadthFirstReadout()
     root = scan(data)
+    root = drop(root)
     # Depth first traversal
     for node in PreOrderIter(root):
         print(f'level{node.level}', node.i, node.j)

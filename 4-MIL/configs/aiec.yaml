@@ -16,20 +16,21 @@ dataset: "AIEC"
 feature_dim: 2048
 KFold: 5
 num_levels: 3
-lowest_level: 2
+lowest_level: 0
 downsample_factor: 4
+tree_dropout: [0.1, 0.3, 0.5]
 
 # Model options
 backbone: "Experts"
 n_experts: 8
 dropout: 0.5
 activation: "gelu"
-num_layers: 24
+num_layers: 2
 num_heads: 8
 d_model: 128
 d_state: 8
 agg: 'avg'
-pretrained: "state-spaces/mamba-130m-hf"
+pretrained: ""
 
 # training options
 seed: 42
