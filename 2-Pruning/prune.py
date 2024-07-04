@@ -74,19 +74,18 @@ def main(rank, csv, args):
                 heatmap_dir = os.path.join(args.root, 'heatmap', slide_name)
                 os.makedirs(heatmap_dir, exist_ok=True)
 
-            tree = PatchTree(coord_path, patch_path)
+            tree = PatchTree(coord_path, patch_path, mode=args.mode)
             num_patches = 0
             num_pruned = 0
             for level_id in reversed(range(tree.num_levels)):
-                if level_id > 0:
-                    threshold = 1 / tree.downsample_factor ** 2
-                else:
-                    threshold = 0.1
+
+                threshold = args.threshold / tree.downsample_factor ** level_id ** 2
+
                 if args.save:
                     save_dir = os.path.join(heatmap_dir, f'level_{level_id}')
                     os.makedirs(save_dir, exist_ok=True)
 
-                level_dataset = LevelPatchDataset(tree, level_id, patch_size=args.patch_size)
+                level_dataset = LevelPatchDataset(tree, level_id, patch_size=args.patch_size, mode=args.mode)
                 num_patches += len(level_dataset)
                 level_dataloader = DataLoader(level_dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.workers)
 
@@ -109,19 +108,25 @@ def main(rank, csv, args):
                         save_names = np.array(filenames)[save_mask.cpu().tolist()]
                         save_probs = probs[save_mask]
                         save_heatmaps(save_images, save_names, save_probs, save_dir)
-        
+
+            if args.mode == 'coordinate':
+                tree.save_changes()
+
             print(f'Pruned {num_pruned} out of {num_patches} patches for WSI {slide_name}!')
 
 
 if __name__ == '__main__':
     args = argparse.ArgumentParser()
-    args.add_argument('--csv_path', type=str, default='/vast/palmer/scratch/liu_xiaofeng/xl693/li/patches_CAMELYON16/status.csv')
+    args.add_argument('--csv_path', type=str, default='/mnt/zhen_chen/patches_AIEC/MMRd/status.csv')
+    # url: https://tiatoolbox.dcs.warwick.ac.uk/models/seg/fcn-tissue_mask.pth
     args.add_argument('--model_path', type=str, default='./fcn-tissue_mask.pth')
-    args.add_argument('--root', type=str, default='/vast/palmer/scratch/liu_xiaofeng/xl693/li/patches_CAMELYON16')
+    args.add_argument('--root', type=str, default='/mnt/zhen_chen/patches_AIEC/MMRd')
     args.add_argument('--save', action='store_true')
     args.add_argument('--batch_size', type=int, default=128)
     args.add_argument('--patch_size', type=int, default=256)
     args.add_argument('--workers', type=int, default=0)
+    args.add_argument('--threshold', type=float, default=0.1, help='Threshold of tissue area at the lowest level')
+    args.add_argument('--mode', type=str, default='patch')
     args = args.parse_args()
 
     csv = pd.read_csv(args.csv_path).sample(frac=1).reset_index(drop=True)
