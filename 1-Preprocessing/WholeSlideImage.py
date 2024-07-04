@@ -55,24 +55,30 @@ class WholeSlideImage(object):
         return level_downsamples
 
     def _visualize_grid(self, img, asset_dict, stop_x, stop_y):
-        scale = self.level_downsamples[self.base_level]
-        save_path = os.path.join(self.dst, 'visualize', f'{self.wsi_name}.png')
+        scale = self.level_downsamples[self.base_level][0]
+        save_path = os.path.join(self.dst, 'visualization', f'{self.wsi_name}.png')
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
         height, width, _ = img.shape
         new_height = int(self.visualize_width * height / width)
         resized_img = cv2.resize(img, (self.visualize_width, new_height), interpolation=cv2.INTER_CUBIC)
         resized_height, resized_width, _ = resized_img.shape
+        scaled_stop_x = int(stop_x / scale / width * resized_width)
+        scaled_stop_y = int(stop_y / scale / height * resized_height)
 
         for level in range(self.num_levels):
             grid_x, grid_y = asset_dict[f'level_{level}'][:, :, 0], asset_dict[f'level_{level}'][:, :, 1]
             scaled_grid_x = grid_x[:, 0] / scale / width * resized_width
             scaled_grid_y = grid_y[0] / scale / height * resized_height
 
-            for x in scaled_grid_x:
-                cv2.line(resized_img, (int(x), 0), (int(x), stop_y-1), self.palette[level], 1 * 2 ** level)
+            for x in set(scaled_grid_x):
+                cv2.line(resized_img, (int(x), 0), (int(x), scaled_stop_y-1), self.palette[level], 1 * 2 ** level)
 
-            for y in scaled_grid_y:
-                cv2.line(resized_img, (0, int(y)), (stop_x-1, int(y)), self.palette[level], 1 * 2 ** level)
+            for y in set(scaled_grid_y):
+                cv2.line(resized_img, (0, int(y)), (scaled_stop_x-1, int(y)), self.palette[level], 1 * 2 ** level)
+
+            # draw the end line
+            cv2.line(resized_img, (scaled_stop_x-1, 0), (scaled_stop_x-1, scaled_stop_y-1), self.palette[level], 1 * 2 ** level)
+            cv2.line(resized_img, (0, scaled_stop_y-1), (scaled_stop_x-1, scaled_stop_y-1), self.palette[level], 1 * 2 ** level)
 
         cv2.imwrite(save_path, resized_img)
 
