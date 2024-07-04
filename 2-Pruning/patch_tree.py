@@ -11,6 +11,8 @@ from torch.utils.data import IterableDataset, Dataset
 class MyNode(AnyNode):
     def delete(self):
         # delete the patch file of the current node and its children
+        if isinstance(self.data, str):
+            os.remove(self.data)
         self.data = None
         # detach
         self.parent = None
@@ -83,7 +85,7 @@ class PatchTree:
             for child_j in range_j:
                 for child_i in range_i:
                     temp_data = self.tree_data[f'level_{child_level}'][child_i, child_j]
-                    if temp_data is None:
+                    if not self._patch_exists(temp_data):
                         continue
                     temp = MyNode(parent=cur_node, i=child_i, j=child_j, level=child_level, data=temp_data)
             return 
@@ -93,10 +95,20 @@ class PatchTree:
             for child_j in range_j:
                 for child_i in range_i:
                     temp_data = self.tree_data[f'level_{child_level}'][child_i, child_j]
-                    if temp_data is None:
+                    if not self._patch_exists(temp_data):
                         continue
                     temp = MyNode(parent=cur_node, i=child_i, j=child_j, level=child_level, data=temp_data)
                     self._recursive_scan(temp)
+
+    def _patch_exists(self, data):
+        if data is None:
+            return False
+        if self.mode == 'patch':
+            return os.path.exists(data)
+        elif self.mode == 'coordinate':
+            return not all(np.array(data) == -1 * np.ones_like(data))
+        return True
+
 
     @staticmethod
     def save_hdf5(output_path, asset_dict, attr_dict, mode='w'):
