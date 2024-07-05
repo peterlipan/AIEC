@@ -46,11 +46,12 @@ def main(rank, csv, args):
     # fetch the rank-th subtable of the csv
     sub_csv = csv[rank]
 
-    dist.init_process_group("gloo", rank=rank, world_size=args.world_size)
+    dist.init_process_group("nccl", rank=rank, world_size=args.world_size)
     torch.cuda.set_device(rank)
 
     finetuned_model_path = f"/mnt/zhen_chen/AIEC/3-PLIP/best_{args.backbone}.pth"
     if not os.path.exists(finetuned_model_path):
+        print(f"Finetuned model for {args.backbone} not found, using pretrained model")
         finetuned_model_path = ''
 
     model, feature_dim, transforms = get_encoder(args.backbone, target_img_size=args.patch_size, finetuned=finetuned_model_path)
@@ -95,11 +96,13 @@ if __name__ == '__main__':
     parser.add_argument('--batch_size', type=int, default=256)
     parser.add_argument('--num_workers', type=int, default=0)
     parser.add_argument('--no_skip', action='store_true')
+    parser.add_argument('--visible_gpu', type=str, default='0,1,2,3')
+    parser.add_argument('--port', type=str, default='12345')
     args = parser.parse_args()
 
-    os.environ['CUDA_VISIBLE_DEVICES'] = VISIBLE_GPU
+    os.environ['CUDA_VISIBLE_DEVICES'] = args.visible_gpu
     os.environ['MASTER_ADDR'] = 'localhost'
-    os.environ['MASTER_PORT'] = '12345'
+    os.environ['MASTER_PORT'] = args.port
 
     csv = pd.read_csv(args.csv_path).sample(frac=1).reset_index(drop=True)
     num_gpu = len(VISIBLE_GPU.split(','))
