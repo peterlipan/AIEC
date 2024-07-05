@@ -87,10 +87,10 @@ def main(rank, csv, args):
             
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--csv_path', type=str, default='/vast/palmer/scratch/liu_xiaofeng/xl693/li/patches_CAMELYON16/status.csv')
-    parser.add_argument('--wsi_dir', type=str, default='/vast/palmer/scratch/liu_xiaofeng/xl693/li/CAMELYON16')
-    parser.add_argument('--h5_dir', type=str, default='/vast/palmer/scratch/liu_xiaofeng/xl693/li/patches_CAMELYON16')
-    parser.add_argument('--save_dir', type=str, default='/vast/palmer/scratch/liu_xiaofeng/xl693/li/features_CAMELYON16')
+    parser.add_argument('--csv_path', type=str, default='/mnt/zhen_chen/patches_AIEC/MMRd/status.csv')
+    parser.add_argument('--wsi_dir', type=str, default='/mnt/zhen_chen/AIEC_tiff/MMRd')
+    parser.add_argument('--h5_dir', type=str, default='/mnt/zhen_chen/patches_AIEC/MMRd')
+    parser.add_argument('--save_dir', type=str, default='/mnt/zhen_chen/features_AIEC/MMRd')
     parser.add_argument('--backbone', type=str, default='densenet121')
     parser.add_argument('--patch_size', type=int, default=256)
     parser.add_argument('--batch_size', type=int, default=512)
