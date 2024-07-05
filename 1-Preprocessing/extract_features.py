@@ -93,7 +93,7 @@ if __name__ == '__main__':
     parser.add_argument('--save_dir', type=str, default='/vast/palmer/scratch/liu_xiaofeng/xl693/li/features_CAMELYON16')
     parser.add_argument('--backbone', type=str, default='densenet121')
     parser.add_argument('--patch_size', type=int, default=256)
-    parser.add_argument('--batch_size', type=int, default=256)
+    parser.add_argument('--batch_size', type=int, default=512)
     parser.add_argument('--num_workers', type=int, default=0)
     parser.add_argument('--no_skip', action='store_true')
     parser.add_argument('--visible_gpu', type=str, default='0,1,2,3')
