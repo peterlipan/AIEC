@@ -12,7 +12,6 @@ from torchvision import transforms
 class Whole_Slide_Bag(Dataset):
     def __init__(self, wsi_path, coord_path, patch_path, img_transforms=None, file_format='patches'):
 
-        
         self.img_transforms = img_transforms
         self.coord_path = coord_path
         self.patch_path = patch_path
@@ -51,7 +50,6 @@ class Whole_Slide_Bag(Dataset):
                 level_path = os.path.abspath(os.path.join(patch_path, f'level_{i}'))
                 self.img_paths.extend([os.path.join(level_path, f) for f in os.listdir(level_path) if f.endswith('.png')])
 
-
     def __len__(self):
         return len(self.img_paths)
 
@@ -79,6 +77,3 @@ class Whole_Slide_Bag(Dataset):
             img = Image.open(self.img_paths[idx]).convert('RGB')
             img = self.img_transforms(img)
             return img, level, i, j
-            
-
-        
