@@ -4,9 +4,10 @@ from .MambaMIL import MambaMIL
 from .ViT import ViTConfig, ViTForImageClassification
 from .transformer import TransformerForSequenceClassification
 from .MambaExperts import MambaExperts
+from .TransMIL import TransMIL
 
 def create_model(args):
-    available_archs = ['Mamba', 'BiMamba', 'SRMamba', 'ViT', 'Transformer', 'Experts']
+    available_archs = ['Mamba', 'BiMamba', 'SRMamba', 'ViT', 'Transformer', 'Experts', 'TransMIL']
     assert args.backbone in available_archs, f"backbone must be one of {available_archs}"
     if 'Mamba' in args.backbone:
         model = MambaMIL(d_in=args.feature_dim, n_classes=args.num_classes, dropout=args.dropout,
@@ -24,6 +25,9 @@ def create_model(args):
         if args.pretrained:
             print(f'Loading model from {args.pretrained}')
         model = MambaExperts(d_in=args.feature_dim, d_model=args.d_model, d_state=args.d_state, n_experts=args.n_experts, n_classes=args.num_classes, dropout=args.dropout, layers=args.num_layers, act=args.activation, aggregation=args.agg, pretrained=args.pretrained)
+
+    elif args.backbone == 'TransMIL':
+        model = TransMIL(d_in=args.feature_dim, n_classes=args.num_classes)
     else:
         model = None
     return model

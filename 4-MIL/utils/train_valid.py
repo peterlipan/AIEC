@@ -28,7 +28,7 @@ def train(dataloaders, model, criteria, optimizer, scheduler, args, logger):
         for i, (_, img, label) in enumerate(train_loader):
             img, label = img.cuda(non_blocking=True), label.cuda(non_blocking=True).long()
             outputs = model(img)
-            features, logits = outputs.features, outputs.logits
+            logits = outputs.logits
 
             # classification loss
             loss = criteria(logits, label)
