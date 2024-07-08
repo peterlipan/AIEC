@@ -152,7 +152,7 @@ def train_experts(dataloaders, model, criteria, optimizer, scheduler, args, logg
             if epoch > args.warmup_epochs:
                 overall_cls_loss = criteria(moe_logits, label)
                 train_overall_cls_loss = overall_cls_loss.item() * args.lambda_cls
-                loss += overall_cls_loss
+                loss = overall_cls_loss + cls_loss
                 if args.lambda_xview:
                     xview_logits_loss = xview_KL(logits, moe_logits)
                     train_logits_loss = xview_logits_loss.item() * args.lambda_xview
