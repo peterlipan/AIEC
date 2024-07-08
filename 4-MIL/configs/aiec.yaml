@@ -4,20 +4,20 @@ gpus: 4
 nr: 0
 dataparallel: 0
 workers: 8
-visible_gpus: "0,5,6,7"
+visible_gpus: "0,1,2,3"
 
 # Paths
-data_root: "/mnt/zhen_chen/pyramid_features_512_PLIP"
+data_root: "/mnt/zhen_chen/features_AIEC"
 csv_path: "./aiec_info.csv"
 checkpoints: "./checkpoints"
 
 # Dataset Options
 dataset: "AIEC"
-feature_dim: 2048
+feature_dim: 1024
 KFold: 5
 num_levels: 3
 lowest_level: 0
-downsample_factor: 4
+downsample_factor: 2
 tree_dropout: [0.1, 0.3, 0.5]
 
 # Model options
@@ -25,12 +25,12 @@ backbone: "Experts"
 n_experts: 8
 dropout: 0.5
 activation: "gelu"
-num_layers: 2
+num_layers: 12
 num_heads: 8
-d_model: 256
+d_model: 512
 d_state: 8
 agg: 'avg'
-pretrained: ""
+pretrained: "state-spaces/mamba-130m-hf"
 
 # training options
 seed: 42
@@ -45,5 +45,5 @@ scheduler: True
 weight_decay: 0.05
 warmup_epochs: 15
 lambda_xsam: 0.1
-lambda_xview: 0
+lambda_xview: 1.0e+3
 lambda_cls: 0.5
