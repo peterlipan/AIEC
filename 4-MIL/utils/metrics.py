@@ -10,8 +10,13 @@ def compute_avg_metrics(ground_truth, activations, avg='micro'):
     predictions = np.argmax(activations, -1)
     mean_acc = accuracy_score(y_true=ground_truth, y_pred=predictions)
     f1 = f1_score(y_true=ground_truth, y_pred=predictions, average=avg)
+    multi_class = 'ovr'
+    # For binary classification
+    if activations.shape[1] == 2:
+        activations = activations[:, 1]
+        multi_class = 'raise'
     try:
-        auc = roc_auc_score(y_true=ground_truth, y_score=activations, multi_class='ovr', average=avg)
+        auc = roc_auc_score(y_true=ground_truth, y_score=activations, multi_class=multi_class, average=avg)
     except ValueError as error:
         print('Error in computing AUC. Error msg:{}'.format(error))
         auc = 0

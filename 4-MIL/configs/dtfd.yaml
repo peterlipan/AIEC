@@ -9,6 +9,7 @@ visible_gpus: "1,2,3,4"
 # Paths
 train_path: "/mnt/zhen_chen/mDATA_train.pkl"
 test_path: "/mnt/zhen_chen/mDATA_test.pkl"
+csv_path: "/mnt/zhen_chen/AIEC/4-MIL/reference.csv"
 checkpoints: "./checkpoints"
 
 # Dataset Options

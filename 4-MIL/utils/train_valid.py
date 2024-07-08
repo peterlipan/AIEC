@@ -109,9 +109,9 @@ def validate(dataloader, model):
             logits = outputs.logits
             pred = F.softmax(logits, dim=1)
             ground_truth = torch.cat((ground_truth, label))
-            predictions = torch.cat((predictions, pred))
+            predictions = torch.cat((predictions, pred))        
 
-        acc, f1, auc, ap, bac, sens, spec, prec, mcc, kappa = compute_avg_metrics(ground_truth, predictions, avg='micro')
+        acc, f1, auc, ap, bac, sens, spec, prec, mcc, kappa = compute_avg_metrics(ground_truth, predictions, avg='macro')
     model.train(training)
     return acc, f1, auc, ap, bac, sens, spec, prec, mcc, kappa
 

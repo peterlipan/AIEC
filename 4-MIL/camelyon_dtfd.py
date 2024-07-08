@@ -34,9 +34,8 @@ def main(gpu, args, wandb_logger):
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
 
-    print("Loading data...")
     load_start = time.time()
-    train_dataset = DTFDDataset(args.train_path)
+    train_dataset = DTFDDataset(args.train_path, args.csv_path, training=True)
     print(f"Data loaded in {time.time() - load_start:.2f} seconds")
     step_per_epoch = len(train_dataset) // (args.batch_size * args.world_size)
 
@@ -58,9 +57,10 @@ def main(gpu, args, wandb_logger):
         pin_memory=True,
     )
     if rank == 0:
-        test_dataset = DTFDDataset(args.test_path)
+        test_dataset = DTFDDataset(args.test_path, args.csv_path, training=False)
         test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False,
         num_workers=0, pin_memory=True)
+        print(f"Train: {len(train_dataset)}, Test: {len(test_dataset)}")
     else:
         test_loader = None
 
@@ -85,7 +85,6 @@ def main(gpu, args, wandb_logger):
         if args.world_size > 1:
             model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
             model = DDP(model, device_ids=[gpu])
-    print("Start training...")
     train(loaders, model, criteria, optimizer, scheduler, args, wandb_logger)
 
 
