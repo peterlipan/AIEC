@@ -17,11 +17,11 @@ dataset: "CAMELYON16_DTFD"
 feature_dim: 1024
 
 # Model options
-backbone: "Mamba"
+backbone: "Transformer"
 dropout: 0.5
 activation: "gelu"
 num_layers: 2
-num_heads: 8
+num_heads: 4
 d_model: 512
 d_state: 8
 agg: 'avg'
