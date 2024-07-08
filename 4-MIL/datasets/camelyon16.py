@@ -1,5 +1,6 @@
 import os
 import torch
+import pickle
 import pandas as pd
 from pathlib import Path
 from torch.utils.data import Dataset
@@ -40,3 +41,33 @@ class CAMELYON16Dataset(Dataset):
                 features = self.transforms(features)
         label = self.labels[idx]
         return wsi_name, features, label
+
+
+class DTFDDataset(Dataset):
+    def __init__(self, path):
+        super().__init__()
+        with open(path, 'rb') as f:
+            self.data = pickle.load(f)
+        self.num_classes = 2
+        self.samples = list(self.data.keys())
+
+        self.labels = []
+        self.features = []
+
+        for sample in self.samples:
+            sample_feature = []
+            self.labels.append(self.data[sample][0]['label'])
+            for item in self.data[sample]:
+                sample_feature.append(torch.from_numpy(item['feature']))
+            self.features.append(torch.stack(sample_feature, dim=0))
+
+                
+
+    def __len__(self):
+        return len(self.samples)
+    
+    def __getitem__(self, idx):
+        name = self.samples[idx]
+        feature = self.features[idx]
+        label = self.labels[idx]
+        return name, feature, label

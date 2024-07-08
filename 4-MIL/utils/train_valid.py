@@ -16,8 +16,7 @@ from .losses import CrossSampleConsistency, CrossViewConsistency
 
 
 def train(dataloaders, model, criteria, optimizer, scheduler, args, logger):
-    cudnn.benchmark = False
-    cudnn.deterministic = True
+
     train_loader, test_loader = dataloaders
     model.train()
     start = time.time()
