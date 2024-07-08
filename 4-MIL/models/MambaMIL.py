@@ -22,6 +22,7 @@ class MambaMIL(nn.Module):
             self.config = MambaConfig()
             self.config.num_hidden_layers = layers
             self.config.d_model = d_model
+            self.config.hidden_size = d_model
             self.layers = layers
             self.d_model = d_model
 

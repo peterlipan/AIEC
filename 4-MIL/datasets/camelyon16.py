@@ -1,5 +1,6 @@
 import os
 import torch
+import pickle
 import pandas as pd
 from pathlib import Path
 from torch.utils.data import Dataset
@@ -40,3 +41,39 @@ class CAMELYON16Dataset(Dataset):
                 features = self.transforms(features)
         label = self.labels[idx]
         return wsi_name, features, label
+
+
+class DTFDDataset(Dataset):
+    def __init__(self, path, csv_path, training=True):
+        super().__init__()
+        with open(path, 'rb') as f:
+            self.data = pickle.load(f)
+        self.num_classes = 2
+        label2num = {'normal': 0, 'tumor': 1}
+        self.samples = list(self.data.keys())
+
+        self.labels = []
+        self.features = []
+        csv = pd.read_csv(csv_path)
+
+        for sample in self.samples:
+            sample_feature = []
+            if training:
+                dx = sample.split('_')[0]
+            else:
+                dx = csv.loc[csv['slide_id'] == sample, 'diagnosis'].values[0].lower()
+            self.labels.append(label2num[dx])
+            for item in self.data[sample]:
+                sample_feature.append(torch.from_numpy(item['feature']))
+            self.features.append(torch.stack(sample_feature, dim=0))
+
+                
+
+    def __len__(self):
+        return len(self.samples)
+    
+    def __getitem__(self, idx):
+        name = self.samples[idx]
+        feature = self.features[idx]
+        label = self.labels[idx]
+        return name, feature, label

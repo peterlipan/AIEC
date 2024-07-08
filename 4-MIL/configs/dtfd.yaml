@@ -7,25 +7,22 @@ workers: 8
 visible_gpus: "1,2,3,4"
 
 # Paths
-data_root: "/mnt/zhen_chen/features_CAMELYON16/pt_files"
+train_path: "/mnt/zhen_chen/mDATA_train.pkl"
+test_path: "/mnt/zhen_chen/mDATA_test.pkl"
 csv_path: "/mnt/zhen_chen/AIEC/4-MIL/reference.csv"
 checkpoints: "./checkpoints"
 
 # Dataset Options
-dataset: "CAMELYON16_Ours"
+dataset: "CAMELYON16_DTFD"
 feature_dim: 1024
-num_levels: 3
-lowest_level: 0
-downsample_factor: 4
 
 # Model options
 backbone: "Transformer"
-n_experts: 8
 dropout: 0.5
 activation: "gelu"
 num_layers: 2
-num_heads: 8
-d_model: 128
+num_heads: 4
+d_model: 512
 d_state: 8
 agg: 'avg'
 pretrained: ""
@@ -42,5 +39,3 @@ lr: 2.0e-4
 scheduler: True
 weight_decay: 0.05
 warmup_epochs: 15
-lambda_xsam: 0.1
-lambda_xview: 1.0e+3

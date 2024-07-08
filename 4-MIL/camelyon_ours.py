@@ -15,7 +15,7 @@ from torch.utils.data import DataLoader
 from transformers.optimization import get_cosine_schedule_with_warmup
 from utils import yaml_config_hook, train, get_optim, convert_model, train_experts
 from sklearn.model_selection import KFold
-from datasets import AIECPyramidDataset, get_train_transforms, get_test_transforms, experts_train_transforms, experts_test_transforms, CAMELYON16Dataset
+from datasets import AIECPyramidDataset, get_train_transforms, get_test_transforms, experts_train_transforms, experts_test_transforms, CAMELYON16Dataset, DTFDDataset
 
 
 def main(gpu, args, wandb_logger):

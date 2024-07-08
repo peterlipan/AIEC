@@ -319,7 +319,7 @@ class Compose(object):
         return x
 
 
-def get_train_transforms(num_levels, downsample_factor, lowest_level):
+def get_train_transforms(num_levels, downsample_factor, lowest_level, dropout):
     return Compose([
         OneOf([
             HorizontalRasterScan(num_levels, downsample_factor, lowest_level),
@@ -327,6 +327,7 @@ def get_train_transforms(num_levels, downsample_factor, lowest_level):
             HorizontalZigzagScan(num_levels, downsample_factor, lowest_level),
             VerticalZigzagScan(num_levels, downsample_factor, lowest_level)
         ]),
+        TreeDropOut(num_levels, dropout),
         OneOf([
             DepthFirstReadout(),
             BreadthFirstReadout()
@@ -356,9 +357,7 @@ class TreeDropOut:
         return root
 
 
-def experts_train_transforms(n_experts, num_levels, downsample_factor, lowest_level, dropout=None):
-    if dropout is None:
-        dropout = [0.1, 0.3, 0.5]
+def experts_train_transforms(n_experts, num_levels, downsample_factor, lowest_level, dropout):
     available_transforms = [
         Compose([HorizontalRasterScan(num_levels, downsample_factor, lowest_level), TreeDropOut(num_levels, dropout), DepthFirstReadout()]),
         Compose([VerticalRasterScan(num_levels, downsample_factor, lowest_level), TreeDropOut(num_levels, dropout), DepthFirstReadout()]),
