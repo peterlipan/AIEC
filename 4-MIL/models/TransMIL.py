@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
-from utils import ModelOutputs, Aggregator
+from .utils import ModelOutputs, Aggregator
 from nystrom_attention import NystromAttention
 
 

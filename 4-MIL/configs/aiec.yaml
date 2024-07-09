@@ -21,7 +21,7 @@ downsample_factor: 2
 tree_dropout: [0.05, 0.1, 0.3]
 
 # Model options
-backbone: "Mamba"
+backbone: "ABMIL"
 n_experts: 8
 dropout: 0.5
 activation: "gelu"
