@@ -7,7 +7,7 @@ from .pretrained_mamba import MyMamba
 
 
 class MambaExperts(nn.Module):
-    def __init__(self, d_in=1024, d_model=512, d_state=64, n_experts=8, n_classes=2, dropout=0.1, layers=2, act='relu', pretrained=''):
+    def __init__(self, d_in=1024, d_model=512, d_state=64, n_experts=8, n_classes=2, dropout=0.1, layers=2, act='relu', pretrained='', aggregation='avg'):
         super(MambaExperts, self).__init__()
 
         if pretrained:
