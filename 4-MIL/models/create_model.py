@@ -9,8 +9,8 @@ def create_model(args):
     available_archs = ['MambaMIL', 'Experts', 'TransMIL', 'ABMIL']
     assert args.backbone in available_archs, f"backbone must be one of {available_archs}"
     if 'MambaMIL' in args.backbone:
-        model = MambaMIL(d_in=args.feature_dim, n_classes=args.num_classes, dropout=args.dropout,
-                         d_model=args.d_model, act=args.activation, layers=args.num_layers)
+        model = MambaMIL(d_in=args.feature_dim, n_classes=args.num_classes, dropout=args.dropout, d_state=args.d_state,
+                         d_model=args.d_model, act=args.activation, num_layers=args.num_layers)
     elif args.backbone == 'Experts':
         if args.pretrained:
             print(f'Loading model from {args.pretrained}')
