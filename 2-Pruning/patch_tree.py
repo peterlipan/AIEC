@@ -167,7 +167,7 @@ class LevelPatchDataset(Dataset):
         if self.mode == 'patch':
             patch = Image.open(node.data).convert('RGB')
         elif self.mode == 'coordinate':
-            patch = self.tree.wsi.read_region((node.i, node.j), self.tree.base_level, (self.level_patch_size, self.level_patch_size)).convert('RGB')
+            patch = self.tree.wsi.read_region(node.data, self.tree.base_level, (self.level_patch_size, self.level_patch_size)).convert('RGB')
         patch = self.transform(patch)
 
         return patch, filename, idx

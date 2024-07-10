@@ -127,7 +127,7 @@ if __name__ == '__main__':
     args.add_argument('--batch_size', type=int, default=256)
     args.add_argument('--patch_size', type=int, default=256)
     args.add_argument('--workers', type=int, default=0)
-    args.add_argument('--threshold', type=float, default=0.3, help='Threshold of tissue area at the lowest level')
+    args.add_argument('--threshold', type=float, default=0.1, help='Threshold of tissue area at the lowest level')
     args.add_argument('--mode', type=str, default='coordinate')
     args.add_argument('--visible_gpu', type=str, default='0,1,2,3')
     args.add_argument('--port', type=str, default='12345')
