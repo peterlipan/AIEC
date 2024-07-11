@@ -102,10 +102,11 @@ def has_UNI():
         print(e)
     return HAS_UNI, UNI_CKPT_PATH
 
-def get_encoder(model_name, target_img_size=512, finetuned=''):
-    custom_models = ['uni_v1', 'conch_v1']
-    if model_name not in custom_models:
-        model, feature_dim = TorchvisionCNNEncoder(model_name, finetuned)
+def get_encoder(model_name, target_img_size=256, finetuned=''):
+
+    if model_name == 'resnet50_trunc':
+        model = TimmCNNEncoder()
+        feature_dim = 1024
     elif model_name == 'uni_v1':
         feature_dim = 1024
         HAS_UNI, UNI_CKPT_PATH = has_UNI()
@@ -125,12 +126,9 @@ def get_encoder(model_name, target_img_size=512, finetuned=''):
     else:
         raise NotImplementedError('model {} not implemented'.format(model_name))
     
-    constants = {
-		"mean": IMAGENET_MEAN,
-		"std": IMAGENET_STD
-	}
+    constants = MODEL2CONSTANTS[model_name]
     img_transforms = transforms.Compose([
-        transforms.Resize(target_img_size),
+        transforms.Resize((target_img_size, target_img_size)),
         transforms.ToTensor(),
         transforms.Normalize(mean=constants['mean'], std=constants['std'])
     ])

@@ -1,8 +1,10 @@
 import os
+import copy
 import h5py
 import openslide
 from PIL import Image
 import numpy as np
+from pathlib import Path
 from anytree import AnyNode, LevelOrderIter
 from torchvision import transforms
 from torch.utils.data import IterableDataset, Dataset
@@ -23,12 +25,15 @@ class MyNode(AnyNode):
 
 class PatchTree:
 
-    def __init__(self, coord_path=None, patch_root=None, wsi_path=None, lowest_level=0, mode='patch'):
+    def __init__(self, coord_path=None, patch_root=None, wsi_path=None, save_path=None, lowest_level=0, mode='patch'):
 
         self.patch_root = patch_root
         self.coord_path = coord_path
         self.lowest_level = lowest_level
         self.mode = mode
+        self.attributes = {}
+
+        self.save_path = save_path
 
         self.shapes = {}
         self.tree_data = {}
@@ -36,7 +41,8 @@ class PatchTree:
             self.coord2write = {}
             self.wsi = openslide.OpenSlide(wsi_path)
         with h5py.File(self.coord_path, "r") as f:
-            self.attributes = f.attrs
+            for key, val in f.attrs.items():
+                self.attributes[key] = val
             self.num_levels = f.attrs['num_levels']
             self.patch_size = f.attrs['patch_size']
             self.downsample_factor = f.attrs['downsample_factor']
@@ -131,12 +137,12 @@ class PatchTree:
         file.close()
         return output_path
 
-    def save_changes(self):
+    def save(self):
         for node in LevelOrderIter(self.root):
             if node.data is None:
                 continue
             self.coord2write[f'level_{node.level}'][node.i, node.j] = node.data
-        self.save_hdf5(self.coord_path, self.coord2write, self.attributes, mode='w')
+        self.save_hdf5(self.save_path, self.coord2write, self.attributes, mode='w')
 
 
 class LevelPatchDataset(Dataset):
@@ -157,9 +163,9 @@ class LevelPatchDataset(Dataset):
         filename = f"{node.i}_{node.j}_.png"
         if self.mode == 'patch':
             patch = Image.open(node.data).convert('RGB')
-            patch = self.transform(patch)
         elif self.mode == 'coordinate':
-            patch = self.tree.wsi.read_region((node.i, node.j), self.tree.base_level, (self.level_patch_size, self.level_patch_size))
+            patch = self.tree.wsi.read_region(node.data, self.tree.base_level, (self.level_patch_size, self.level_patch_size)).convert('RGB')
+        patch = self.transform(patch)
 
         return patch, filename, idx
 

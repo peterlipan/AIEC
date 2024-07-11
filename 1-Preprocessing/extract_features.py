@@ -12,8 +12,6 @@ from dataset_helpers import Whole_Slide_Bag
 from feature_extractors import get_encoder
 from torch.nn.parallel import DistributedDataParallel as DDP
 
-VISIBLE_GPU = '0,1,2,3'
-
 
 def extract_features(model, level_shapes, feature_dim, dataloader):
     model.eval()
@@ -67,7 +65,7 @@ def main(rank, csv, args):
             print(f'Processing {slide_name}...')
 
             slide_path = os.path.join(args.wsi_dir, slide_id)
-            coord_path = os.path.join(args.h5_dir, 'coordinates', f'{slide_name}.h5')
+            coord_path = os.path.join(args.h5_dir, f'{slide_name}.h5')
             patch_path = os.path.join(args.h5_dir, 'patches', slide_name)
             save_path = os.path.join(args.save_dir, 'pt_files', f'{slide_name}.pt')
 
@@ -77,7 +75,7 @@ def main(rank, csv, args):
             else:
                 os.makedirs(os.path.dirname(save_path), exist_ok=True)
 
-            slide_dataset = Whole_Slide_Bag(slide_path, coord_path, patch_path, img_transforms=transforms)
+            slide_dataset = Whole_Slide_Bag(slide_path, coord_path, patch_path, img_transforms=transforms, mode=args.mode)
             dataloader = DataLoader(slide_dataset, batch_size=args.batch_size, num_workers=args.num_workers, shuffle=False, pin_memory=True)
             level_shapes = slide_dataset.shapes
             wsi_features = extract_features(model, level_shapes, feature_dim, dataloader)
@@ -87,17 +85,18 @@ def main(rank, csv, args):
             
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--csv_path', type=str, default='/mnt/zhen_chen/patches_AIEC/MMRd/status.csv')
-    parser.add_argument('--wsi_dir', type=str, default='/mnt/zhen_chen/AIEC_tiff/MMRd')
-    parser.add_argument('--h5_dir', type=str, default='/mnt/zhen_chen/patches_AIEC/MMRd')
-    parser.add_argument('--save_dir', type=str, default='/mnt/zhen_chen/features_AIEC/MMRd')
-    parser.add_argument('--backbone', type=str, default='densenet121')
+    parser.add_argument('--csv_path', type=str, default='/mnt/zhen_chen/patches_CAMELYON16/status.csv')
+    parser.add_argument('--wsi_dir', type=str, default='/mnt/zhen_chen/CAMELYON16')
+    parser.add_argument('--h5_dir', type=str, default='/mnt/zhen_chen/coordinates_CAMELYON16_pruned')
+    parser.add_argument('--save_dir', type=str, default='/mnt/zhen_chen/features_CAMELYON16_CLAM')
+    parser.add_argument('--backbone', type=str, default='resnet50_trunc')
     parser.add_argument('--patch_size', type=int, default=256)
     parser.add_argument('--batch_size', type=int, default=512)
     parser.add_argument('--num_workers', type=int, default=0)
     parser.add_argument('--no_skip', action='store_true')
-    parser.add_argument('--visible_gpu', type=str, default='0,1,2,3')
+    parser.add_argument('--visible_gpu', type=str, default='1,2,3,4')
     parser.add_argument('--port', type=str, default='12345')
+    parser.add_argument('--mode', type=str, default='coordinate')
     args = parser.parse_args()
 
     os.environ['CUDA_VISIBLE_DEVICES'] = args.visible_gpu
@@ -105,7 +104,7 @@ if __name__ == '__main__':
     os.environ['MASTER_PORT'] = args.port
 
     csv = pd.read_csv(args.csv_path).sample(frac=1).reset_index(drop=True)
-    num_gpu = len(VISIBLE_GPU.split(','))
+    num_gpu = len(args.visible_gpu.split(','))
     args.world_size = num_gpu
 
     # split the csv into num_gpu subtables

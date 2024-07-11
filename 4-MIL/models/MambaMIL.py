@@ -609,9 +609,9 @@ class Block(nn.Module):
 
 
 class MambaMIL(nn.Module):
-    def __init__(self, d_in, n_classes, dropout, act, layer=2, rate=10):
+    def __init__(self, d_in, d_model, d_state, n_classes, dropout, act, num_layers=2, rate=10):
         super(MambaMIL, self).__init__()
-        self._fc1 = [nn.Linear(d_in, 512)]
+        self._fc1 = [nn.Linear(d_in, d_model)]
         if act.lower() == 'relu':
             self._fc1 += [nn.ReLU()]
         elif act.lower() == 'gelu':
@@ -620,16 +620,16 @@ class MambaMIL(nn.Module):
             self._fc1 += [nn.Dropout(dropout)]
 
         self._fc1 = nn.Sequential(*self._fc1)
-        self.norm = nn.LayerNorm(512)
+        self.norm = nn.LayerNorm(d_model)
         self.layers = nn.ModuleList()
 
-        for _ in range(layer):
+        for _ in range(num_layers):
             self.layers.append(
                 nn.Sequential(
-                    nn.LayerNorm(512),
+                    nn.LayerNorm(d_model),
                     SRMamba(
-                        d_model=512,
-                        d_state=16,  
+                        d_model=d_model,
+                        d_state=d_state,  
                         d_conv=4,    
                         expand=2,
                     ),
@@ -637,9 +637,9 @@ class MambaMIL(nn.Module):
             )
 
         self.n_classes = n_classes
-        self.classifier = nn.Linear(512, self.n_classes)
+        self.classifier = nn.Linear(d_model, self.n_classes)
         self.attention = nn.Sequential(
-            nn.Linear(512, 128),
+            nn.Linear(d_model, 128),
             nn.Tanh(),
             nn.Linear(128, 1)
         )
