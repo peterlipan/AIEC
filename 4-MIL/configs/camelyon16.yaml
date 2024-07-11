@@ -4,10 +4,10 @@ gpus: 4
 nr: 0
 dataparallel: 0
 workers: 8
-visible_gpus: "1,2,3,4"
+visible_gpus: "0,1,2,3"
 
 # Paths
-data_root: "/mnt/zhen_chen/features_CAMELYON16/pt_files"
+data_root: "/mnt/zhen_chen/features_CAMELYON16_CLAM/pt_files"
 csv_path: "/mnt/zhen_chen/AIEC/4-MIL/reference.csv"
 checkpoints: "./checkpoints"
 
@@ -17,15 +17,16 @@ feature_dim: 1024
 num_levels: 3
 lowest_level: 0
 downsample_factor: 4
+tree_dropout: [0.05, 0.1, 0.3]
 
 # Model options
-backbone: "Transformer"
+backbone: "Experts"
 n_experts: 8
 dropout: 0.5
 activation: "gelu"
 num_layers: 2
 num_heads: 8
-d_model: 128
+d_model: 256
 d_state: 8
 agg: 'avg'
 pretrained: ""
