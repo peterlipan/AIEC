@@ -65,7 +65,7 @@ def main(rank, csv, args):
             print(f'Processing {slide_name}...')
 
             slide_path = os.path.join(args.wsi_dir, slide_id)
-            coord_path = os.path.join(args.h5_dir, 'coordinates', f'{slide_name}.h5')
+            coord_path = os.path.join(args.h5_dir, f'{slide_name}.h5')
             patch_path = os.path.join(args.h5_dir, 'patches', slide_name)
             save_path = os.path.join(args.save_dir, 'pt_files', f'{slide_name}.pt')
 
@@ -85,18 +85,18 @@ def main(rank, csv, args):
             
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--csv_path', type=str, default='/mnt/zhen_chen/patches_AIEC/MMRd/status.csv')
-    parser.add_argument('--wsi_dir', type=str, default='/mnt/zhen_chen/AIEC_tiff/MMRd')
-    parser.add_argument('--h5_dir', type=str, default='/mnt/zhen_chen/patches_AIEC/MMRd')
-    parser.add_argument('--save_dir', type=str, default='/mnt/zhen_chen/features_AIEC_CLAM/MMRd')
+    parser.add_argument('--csv_path', type=str, default='/mnt/zhen_chen/patches_CAMELYON16/status.csv')
+    parser.add_argument('--wsi_dir', type=str, default='/mnt/zhen_chen/CAMELYON16')
+    parser.add_argument('--h5_dir', type=str, default='/mnt/zhen_chen/coordinates_CAMELYON16_pruned')
+    parser.add_argument('--save_dir', type=str, default='/mnt/zhen_chen/features_CAMELYON16_CLAM')
     parser.add_argument('--backbone', type=str, default='resnet50_trunc')
     parser.add_argument('--patch_size', type=int, default=256)
-    parser.add_argument('--batch_size', type=int, default=2048)
+    parser.add_argument('--batch_size', type=int, default=512)
     parser.add_argument('--num_workers', type=int, default=0)
     parser.add_argument('--no_skip', action='store_true')
     parser.add_argument('--visible_gpu', type=str, default='1,2,3,4')
     parser.add_argument('--port', type=str, default='12345')
-    parser.add_argument('--mode', type=str, default='patch')
+    parser.add_argument('--mode', type=str, default='coordinate')
     args = parser.parse_args()
 
     os.environ['CUDA_VISIBLE_DEVICES'] = args.visible_gpu

@@ -29,12 +29,12 @@ class Whole_Slide_Bag(Dataset):
                 self.levels = []
                 self.locs = []
                 for l in range(self.num_levels):
-                    self.levels.append(f'level_{l}')
-                    self.shapes[f'level_{i}'] = f[f'level_{l}'].shape
+                    self.shapes[f'level_{l}'] = f[f'level_{l}'].shape
                     level_coords = np.array(f[f'level_{l}'])
                     for i in range(level_coords.shape[0]):
                         for j in range(level_coords.shape[1]):
                             if all(level_coords[i, j] != -1):
+                                self.levels.append(f'level_{l}')
                                 self.coords.append(level_coords[i, j])
                                 self.locs.append([i, j])
             self.levels.append('overview')
@@ -57,7 +57,7 @@ class Whole_Slide_Bag(Dataset):
                 self.img_paths.extend([os.path.join(level_path, f) for f in os.listdir(level_path) if f.endswith('.png')])
 
     def __len__(self):
-        if self.mode == 'coordiante':
+        if self.mode == 'coordinate':
             return len(self.coords)
         else:
             return len(self.img_paths)
@@ -66,6 +66,7 @@ class Whole_Slide_Bag(Dataset):
         if self.mode == 'coordinate':
             coord = self.coords[idx]
             level = self.levels[idx]
+            i, j = self.locs[idx]
             if level == 'overview':
                 dimensions = self.wsi.level_dimensions[-1]
                 fetch_level = len(self.wsi.level_dimensions) - 1
@@ -78,7 +79,7 @@ class Whole_Slide_Bag(Dataset):
             # crop self.img with coords
             img = self.wsi.read_region(coord, self.base_level, (size, size)).convert('RGB')
             img = self.img_transforms(img)
-            return img, level, coord[0], coord[1]
+            return img, level, i, j
         
         elif self.mode == 'patch':
             img_path = self.img_paths[idx]
