@@ -1,0 +1,4 @@
+python3 extract_features.py --csv_path '/mnt/zhen_chen/patches_AIEC/MMRd/status.csv' --wsi_dir /mnt/zhen_chen/AIEC_tiff/MMRd --h5_dir /mnt/zhen_chen/patches_AIEC/MMRd --save_dir /mnt/zhen_chen/features_AIEC_CLAM/MMRd
+python3 extract_features.py --csv_path '/mnt/zhen_chen/patches_AIEC/NSMP/status.csv' --wsi_dir /mnt/zhen_chen/AIEC_tiff/NSMP --h5_dir /mnt/zhen_chen/patches_AIEC/NSMP --save_dir /mnt/zhen_chen/features_AIEC_CLAM/NSMP
+python3 extract_features.py --csv_path '/mnt/zhen_chen/patches_AIEC/P53abn/status.csv' --wsi_dir /mnt/zhen_chen/AIEC_tiff/P53abn --h5_dir /mnt/zhen_chen/patches_AIEC/P53abn --save_dir /mnt/zhen_chen/features_AIEC_CLAM/P53abn
+python3 extract_features.py --csv_path '/mnt/zhen_chen/patches_AIEC/POLEmut/status.csv' --wsi_dir /mnt/zhen_chen/AIEC_tiff/POLEmut --h5_dir /mnt/zhen_chen/patches_AIEC/POLEmut --save_dir /mnt/zhen_chen/features_AIEC_CLAM/POLEmut
