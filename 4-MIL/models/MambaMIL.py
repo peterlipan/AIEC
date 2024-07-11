@@ -24,6 +24,17 @@ import causal_conv1d_cuda
 import selective_scan_cuda
 
 
+def initialize_weights(module):
+    for m in module.modules():
+        if isinstance(m, nn.Linear):
+            nn.init.xavier_normal_(m.weight)
+            if m.bias is not None:
+                m.bias.data.zero_()
+        if isinstance(m, nn.LayerNorm):
+            nn.init.constant_(m.bias, 0)
+            nn.init.constant_(m.weight, 1.0)
+
+
 class MambaInnerFnNoOutProj(torch.autograd.Function):
 
     @staticmethod
@@ -611,7 +622,6 @@ class MambaMIL(nn.Module):
         self._fc1 = nn.Sequential(*self._fc1)
         self.norm = nn.LayerNorm(512)
         self.layers = nn.ModuleList()
-        self.survival = survival
 
         for _ in range(layer):
             self.layers.append(
