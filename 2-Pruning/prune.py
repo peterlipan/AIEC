@@ -69,11 +69,18 @@ def main(rank, csv, args):
             patch_path = os.path.join(args.patch_root, 'patches', slide_name)
             coord_path = os.path.join(args.patch_root, 'coordinates', f'{slide_name}.h5')
             wsi_path = os.path.join(args.wsi_root, f'{slide_name}.tif')
+            coord_save_path = os.path.join(args.save_root, f'{slide_name}.h5')
+            if args.mode == 'coordinate':
+                if os.path.exists(coord_save_path):
+                    print(f'{slide_name} already pruned. Skipping...')
+                    continue
+                else:
+                    os.makedirs(os.path.dirname(coord_save_path), exist_ok=True)
             if args.save:
                 heatmap_dir = os.path.join(args.patch_root, 'heatmap', slide_name)
                 os.makedirs(heatmap_dir, exist_ok=True)
 
-            tree = PatchTree(coord_path=coord_path, patch_root=patch_path, wsi_path=wsi_path, save_root=args.save_root, mode=args.mode)
+            tree = PatchTree(coord_path=coord_path, patch_root=patch_path, wsi_path=wsi_path, save_path=coord_save_path, mode=args.mode)
             num_patches = 0
             num_pruned = 0
             for level_id in reversed(range(tree.num_levels)):

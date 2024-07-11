@@ -25,7 +25,7 @@ class MyNode(AnyNode):
 
 class PatchTree:
 
-    def __init__(self, coord_path=None, patch_root=None, wsi_path=None, save_root=None, lowest_level=0, mode='patch'):
+    def __init__(self, coord_path=None, patch_root=None, wsi_path=None, save_path=None, lowest_level=0, mode='patch'):
 
         self.patch_root = patch_root
         self.coord_path = coord_path
@@ -33,10 +33,7 @@ class PatchTree:
         self.mode = mode
         self.attributes = {}
 
-        if save_root:
-            if not os.path.exists(save_root):
-                os.makedirs(save_root)
-            self.save_path = os.path.join(save_root, Path(coord_path).name)
+        self.save_path = save_path
 
         self.shapes = {}
         self.tree_data = {}
