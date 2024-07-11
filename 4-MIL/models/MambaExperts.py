@@ -17,7 +17,7 @@ class MambaExperts(nn.Module):
             self.d_model = self.config.hidden_size
         else:
             self.config = MambaConfig(hidden_size=d_model, state_size=d_state, num_hidden_layers=layers)
-
+            self.d_model = d_model
 
         self._fc1 = [nn.LayerNorm(d_in), nn.Linear(d_in, self.d_model)]
 
