@@ -19,7 +19,7 @@ class MambaExperts(nn.Module):
             self.config = MambaConfig(hidden_size=d_model, state_size=d_state, num_hidden_layers=layers)
             self.d_model = d_model
 
-        self._fc1 = [nn.LayerNorm(d_in), nn.Linear(d_in, self.d_model)]
+        self._fc1 = [nn.Linear(d_in, self.d_model)]
 
         if act.lower() == 'relu':
             self._fc1 += [nn.ReLU()]
@@ -27,8 +27,9 @@ class MambaExperts(nn.Module):
             self._fc1 += [nn.GELU()]
         if dropout:
             self._fc1 += [nn.Dropout(dropout)]
-
+        
         self._fc1 = nn.Sequential(*self._fc1)
+        self.norm = nn.LayerNorm(self.d_model)
         self.n_experts = n_experts
         self.experts = nn.ModuleList()
         self.pretrained = pretrained
@@ -51,7 +52,7 @@ class MambaExperts(nn.Module):
         logits = []
         x = [self._fc1(item) for item in x]
         for i, expert in enumerate(self.experts):
-            exp = expert(x[i])
+            exp = self.norm(expert(x[i]))
             exp = self.aggregate(exp)
             pred = self.classifier(exp)
             features.append(exp)
