@@ -4,28 +4,28 @@ gpus: 4
 nr: 0
 dataparallel: 0
 workers: 8
-visible_gpus: "0,1,2,3"
+visible_gpus: "1,2,3,4"
 
 # Paths
-data_root: "/mnt/zhen_chen/features_AIEC"
+data_root: "/mnt/zhen_chen/features_AIEC_CLAM"
 csv_path: "./aiec_info.csv"
 checkpoints: "./checkpoints"
 
 # Dataset Options
-dataset: "AIEC"
+dataset: "AIEC_CLAM"
 feature_dim: 1024
 KFold: 5
 num_levels: 3
 lowest_level: 0
 downsample_factor: 2
-tree_dropout: [0.05, 0.1, 0.3]
+tree_dropout: [0.05, 0.1, 0.2]
 
 # Model options
 backbone: "MambaMIL"
 n_experts: 8
 dropout: 0.5
 activation: "gelu"
-num_layers: 6
+num_layers: 2
 num_heads: 8
 d_model: 512
 d_state: 8
@@ -46,4 +46,4 @@ weight_decay: 0.05
 warmup_epochs: 10
 lambda_xsam: 0
 lambda_xview: 0
-lambda_cls: 0
+lambda_cls: 1
