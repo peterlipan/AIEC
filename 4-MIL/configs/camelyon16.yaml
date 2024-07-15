@@ -17,10 +17,11 @@ feature_dim: 1024
 num_levels: 3
 lowest_level: 0
 downsample_factor: 4
-tree_dropout: [0.05, 0.1, 0.3]
+tree_dropout: [0, 0, 0]
+visible_levels: [0]
 
 # Model options
-backbone: "Experts"
+backbone: "TransMIL"
 n_experts: 8
 dropout: 0.5
 activation: "gelu"
