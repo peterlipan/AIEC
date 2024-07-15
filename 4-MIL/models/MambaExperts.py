@@ -3,7 +3,7 @@ import torch.nn as nn
 from transformers import MambaConfig
 from .utils import Aggregator, ModelOutputs
 from mamba_ssm import Mamba, Mamba2
-from .pretrained_mamba import MyMamba
+from .pretrained_mamba import MyMamba, OfficialMamba
 
 
 class MambaExperts(nn.Module):
@@ -16,20 +16,10 @@ class MambaExperts(nn.Module):
             self.layers = layers
             self.d_model = self.config.hidden_size
         else:
-            self.config = MambaConfig(hidden_size=d_model, state_size=d_state, num_hidden_layers=layers)
             self.d_model = d_model
-
-        self._fc1 = [nn.Linear(d_in, self.d_model)]
-
-        if act.lower() == 'relu':
-            self._fc1 += [nn.ReLU()]
-        elif act.lower() == 'gelu':
-            self._fc1 += [nn.GELU()]
-        if dropout:
-            self._fc1 += [nn.Dropout(dropout)]
+            self.d_state = d_state
+            self.layers = layers
         
-        self._fc1 = nn.Sequential(*self._fc1)
-        self.norm = nn.LayerNorm(self.d_model)
         self.n_experts = n_experts
         self.experts = nn.ModuleList()
         self.pretrained = pretrained
@@ -37,7 +27,9 @@ class MambaExperts(nn.Module):
         self.aggregation = aggregation
 
         for _ in range(n_experts):
-            temp = MyMamba.from_pretrained(self.pretrained, config=self.config) if pretrained else MyMamba(self.config)
+            temp = [nn.Linear(d_in, self.d_model), nn.ReLU(), nn.Dropout(dropout)]
+            temp.append(MyMamba(config=self.confg) if pretrained else OfficialMamba(d_model=self.d_model, d_state=self.d_state, layers=self.layers, mamba2=False))
+            temp = nn.Sequential(*temp)
             self.experts.append(temp)
             
         self.classifier = nn.Linear(self.d_model, n_classes)
@@ -45,12 +37,10 @@ class MambaExperts(nn.Module):
 
     def forward(self, x):
         # x: list, [n_views, 1, L, C]
-        device = x[0].device
         # features: [B, n_views, d_model]
         # logits: [B, n_views, n_classes]
         features = []
         logits = []
-        x = [self._fc1(item) for item in x]
         for i, expert in enumerate(self.experts):
             exp = self.norm(expert(x[i]))
             exp = self.aggregate(exp)

@@ -1,4 +1,5 @@
 from torch import nn
+from mamba_ssm import Mamba, Mamba2
 from transformers import MambaConfig
 from transformers.models.mamba.modeling_mamba import MambaBlock, MambaRMSNorm, MambaPreTrainedModel, MambaCache
 
@@ -58,3 +59,30 @@ class MyMamba(MambaPreTrainedModel):
 
         return hidden_states
     
+
+class OfficialMamba(nn.Module):
+    def __init__(self, d_model=512, d_state=64, layers=2, mamba2=False):
+        super().__init__()
+        self.model = nn.ModuleList()
+        for _ in range(layers):
+            if mamba2:
+                self.model.append(
+                    nn.Sequential(
+                        nn.LayerNorm(d_model),
+                        Mamba2(d_model=d_model, d_state=d_state, d_conv=4, expand=2),
+                        )
+                    )
+            else:
+                self.model.append(
+                    nn.Sequential(
+                        nn.LayerNorm(d_model),
+                        Mamba(d_model=d_model, d_state=d_state, d_conv=4, expand=2),
+                        )
+                    )
+    
+    def forward(self, x):
+        for layer in self.model:
+            res = x
+            x = layer(x)
+            x = x + res
+        return x
