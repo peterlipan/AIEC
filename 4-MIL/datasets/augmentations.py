@@ -270,8 +270,9 @@ class VerticalZigzagScan(AbstractScan):
 
 
 class AbstractReadout(object):
-    def __init__(self, p=1):
+    def __init__(self, p=1, levels=None):
         self.p = p
+        self.levels = levels
     
     def _readout_func(self, x):
         raise NotImplementedError("Subclasses should implement this!")
@@ -284,14 +285,14 @@ class DepthFirstReadout(AbstractReadout):
     
     def _readout_func(self, x):
         # drop the pseudo root node
-        return torch.stack([x.data for x in PreOrderIter(x)])
+        return torch.stack([x.data for x in PreOrderIter(x) if x.level in self.levels])
 
 
 class BreadthFirstReadout(AbstractReadout):
     
-    def _readout_func(self, data):
+    def _readout_func(self, x):
         # drop the pseudo root node
-        return torch.stack([node.data for node in LevelOrderIter(data)])
+        return torch.stack([x.data for x in LevelOrderIter(x) if x.level in self.levels])
                 
 
 class OneOf(object):
@@ -319,7 +320,7 @@ class Compose(object):
         return x
 
 
-def get_train_transforms(num_levels, downsample_factor, lowest_level, dropout):
+def get_train_transforms(num_levels, downsample_factor, lowest_level, dropout, visible_levels):
     return Compose([
         OneOf([
             HorizontalRasterScan(num_levels, downsample_factor, lowest_level),
@@ -329,16 +330,16 @@ def get_train_transforms(num_levels, downsample_factor, lowest_level, dropout):
         ]),
         TreeDropOut(num_levels, dropout),
         OneOf([
-            DepthFirstReadout(),
-            BreadthFirstReadout()
+            DepthFirstReadout(levels=visible_levels),
+            BreadthFirstReadout(levels=visible_levels)
         ])
     ])
 
 
-def get_test_transforms(num_levels, downsample_factor, lowest_level):
+def get_test_transforms(num_levels, downsample_factor, lowest_level, visible_levels):
     return Compose([
         HorizontalRasterScan(num_levels, downsample_factor, lowest_level, p_i=0, p_j=0),
-        DepthFirstReadout()
+        DepthFirstReadout(levels=visible_levels)
     ])
 
 
@@ -357,31 +358,31 @@ class TreeDropOut:
         return root
 
 
-def experts_train_transforms(n_experts, num_levels, downsample_factor, lowest_level, dropout):
+def experts_train_transforms(n_experts, num_levels, downsample_factor, lowest_level, dropout, visible_levels):
     available_transforms = [
-        Compose([HorizontalRasterScan(num_levels, downsample_factor, lowest_level), TreeDropOut(num_levels, dropout), DepthFirstReadout()]),
-        Compose([VerticalRasterScan(num_levels, downsample_factor, lowest_level), TreeDropOut(num_levels, dropout), DepthFirstReadout()]),
-        Compose([HorizontalZigzagScan(num_levels, downsample_factor, lowest_level), TreeDropOut(num_levels, dropout), DepthFirstReadout()]),
-        Compose([VerticalZigzagScan(num_levels, downsample_factor, lowest_level), TreeDropOut(num_levels, dropout), DepthFirstReadout()]),
-        Compose([HorizontalRasterScan(num_levels, downsample_factor, lowest_level), TreeDropOut(num_levels, dropout), BreadthFirstReadout()]),
-        Compose([VerticalRasterScan(num_levels, downsample_factor, lowest_level), TreeDropOut(num_levels, dropout), BreadthFirstReadout()]),
-        Compose([HorizontalZigzagScan(num_levels, downsample_factor, lowest_level), TreeDropOut(num_levels, dropout), BreadthFirstReadout()]),
-        Compose([VerticalZigzagScan(num_levels, downsample_factor, lowest_level), TreeDropOut(num_levels, dropout), BreadthFirstReadout()]),
+        Compose([HorizontalRasterScan(num_levels, downsample_factor, lowest_level), TreeDropOut(num_levels, dropout), DepthFirstReadout(levels=visible_levels)]),
+        Compose([VerticalRasterScan(num_levels, downsample_factor, lowest_level), TreeDropOut(num_levels, dropout), DepthFirstReadout(levels=visible_levels)]),
+        Compose([HorizontalZigzagScan(num_levels, downsample_factor, lowest_level), TreeDropOut(num_levels, dropout), DepthFirstReadout(levels=visible_levels)]),
+        Compose([VerticalZigzagScan(num_levels, downsample_factor, lowest_level), TreeDropOut(num_levels, dropout), DepthFirstReadout(levels=visible_levels)]),
+        Compose([HorizontalRasterScan(num_levels, downsample_factor, lowest_level), TreeDropOut(num_levels, dropout), BreadthFirstReadout(levels=visible_levels)]),
+        Compose([VerticalRasterScan(num_levels, downsample_factor, lowest_level), TreeDropOut(num_levels, dropout), BreadthFirstReadout(levels=visible_levels)]),
+        Compose([HorizontalZigzagScan(num_levels, downsample_factor, lowest_level), TreeDropOut(num_levels, dropout), BreadthFirstReadout(levels=visible_levels)]),
+        Compose([VerticalZigzagScan(num_levels, downsample_factor, lowest_level), TreeDropOut(num_levels, dropout), BreadthFirstReadout(levels=visible_levels)]),
     ]
 
     return available_transforms[:n_experts]
 
 
-def experts_test_transforms(n_experts, num_levels, downsample_factor, lowest_level):
+def experts_test_transforms(n_experts, num_levels, downsample_factor, lowest_level, visible_levels):
     available_transforms = [
-        Compose([HorizontalRasterScan(num_levels, downsample_factor, lowest_level, p_i=0, p_j=0), DepthFirstReadout()]),
-        Compose([VerticalRasterScan(num_levels, downsample_factor, lowest_level, p_i=0, p_j=0), DepthFirstReadout()]),
-        Compose([HorizontalZigzagScan(num_levels, downsample_factor, lowest_level, p_i=0, p_j=0), DepthFirstReadout()]),
-        Compose([VerticalZigzagScan(num_levels, downsample_factor, lowest_level, p_i=0, p_j=0), DepthFirstReadout()]),
-        Compose([HorizontalRasterScan(num_levels, downsample_factor, lowest_level, p_i=0, p_j=0), BreadthFirstReadout()]),
-        Compose([VerticalRasterScan(num_levels, downsample_factor, lowest_level, p_i=0, p_j=0), BreadthFirstReadout()]),
-        Compose([HorizontalZigzagScan(num_levels, downsample_factor, lowest_level, p_i=0, p_j=0), BreadthFirstReadout()]),
-        Compose([VerticalZigzagScan(num_levels, downsample_factor, lowest_level, p_i=0, p_j=0), BreadthFirstReadout()]),
+        Compose([HorizontalRasterScan(num_levels, downsample_factor, lowest_level, p_i=0, p_j=0), DepthFirstReadout(levels=visible_levels)]),
+        Compose([VerticalRasterScan(num_levels, downsample_factor, lowest_level, p_i=0, p_j=0), DepthFirstReadout(levels=visible_levels)]),
+        Compose([HorizontalZigzagScan(num_levels, downsample_factor, lowest_level, p_i=0, p_j=0), DepthFirstReadout(levels=visible_levels)]),
+        Compose([VerticalZigzagScan(num_levels, downsample_factor, lowest_level, p_i=0, p_j=0), DepthFirstReadout(levels=visible_levels)]),
+        Compose([HorizontalRasterScan(num_levels, downsample_factor, lowest_level, p_i=0, p_j=0), BreadthFirstReadout(levels=visible_levels)]),
+        Compose([VerticalRasterScan(num_levels, downsample_factor, lowest_level, p_i=0, p_j=0), BreadthFirstReadout(levels=visible_levels)]),
+        Compose([HorizontalZigzagScan(num_levels, downsample_factor, lowest_level, p_i=0, p_j=0), BreadthFirstReadout(levels=visible_levels)]),
+        Compose([VerticalZigzagScan(num_levels, downsample_factor, lowest_level, p_i=0, p_j=0), BreadthFirstReadout(levels=visible_levels)]),
     ]
 
     return available_transforms[:n_experts]
