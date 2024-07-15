@@ -19,17 +19,26 @@ class MambaExperts(nn.Module):
             self.d_model = d_model
             self.d_state = d_state
             self.layers = layers
+
+        self._fc1 = [nn.Linear(d_in, d_model, bias=False)]
+        if act.lower() == 'relu':
+            self._fc1 += [nn.ReLU()]
+        elif act.lower() == 'gelu':
+            self._fc1 += [nn.GELU()]
+        if dropout:
+            self._fc1 += [nn.Dropout(dropout)]
+
+        self._fc1 = nn.Sequential(*self._fc1)
         
         self.n_experts = n_experts
+        self.norm = nn.LayerNorm(d_model)
         self.experts = nn.ModuleList()
         self.pretrained = pretrained
 
         self.aggregation = aggregation
 
         for _ in range(n_experts):
-            temp = [nn.Linear(d_in, self.d_model), nn.ReLU(), nn.Dropout(dropout)]
-            temp.append(MyMamba(config=self.confg) if pretrained else OfficialMamba(d_model=self.d_model, d_state=self.d_state, layers=self.layers, mamba2=False))
-            temp = nn.Sequential(*temp)
+            temp = MyMamba(config=self.confg) if pretrained else OfficialMamba(d_model=self.d_model, d_state=self.d_state, layers=self.layers, mamba2=False)
             self.experts.append(temp)
             
         self.classifier = nn.Linear(self.d_model, n_classes)
@@ -41,6 +50,7 @@ class MambaExperts(nn.Module):
         # logits: [B, n_views, n_classes]
         features = []
         logits = []
+        x = [self._fc1(view) for view in x]
         for i, expert in enumerate(self.experts):
             exp = self.norm(expert(x[i]))
             exp = self.aggregate(exp)
