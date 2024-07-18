@@ -23,12 +23,12 @@ visible_levels: [0, 1, 2]
 # Model options
 backbone: "MambaAgents"
 n_experts: 8
-dropout: 0.5
+dropout: 0.3
 activation: "gelu"
 num_layers: 2
 num_heads: 8
 d_model: 512
-d_state: 8
+d_state: 32
 agg: 'avg'
 pretrained: ""
 

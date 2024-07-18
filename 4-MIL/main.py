@@ -33,7 +33,7 @@ def main(gpu, args, wandb_logger):
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
 
-    if 'expert' in args.backbone.lower():
+    if 'expert' in args.backbone.lower() or 'agents' in args.backbone.lower():
         train_transforms = experts_train_transforms(n_experts=args.n_experts, num_levels=args.num_levels, downsample_factor=args.downsample_factor, lowest_level=args.lowest_level, dropout=args.tree_dropout, visible_levels=args.visible_levels)
         test_transforms = experts_test_transforms(n_experts=args.n_experts, num_levels=args.num_levels, downsample_factor=args.downsample_factor, lowest_level=args.lowest_level, visible_levels=args.visible_levels)
     else:

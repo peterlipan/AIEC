@@ -1,7 +1,7 @@
 import torch
 import random
 import numpy as np
-from anytree import AnyNode, PreOrderIter, LevelOrderIter, RenderTree
+from anytree import AnyNode, PreOrderIter, LevelOrderIter, RenderTree, PostOrderIter
 
 
 class MyNode(AnyNode):
@@ -277,6 +277,7 @@ class AbstractReadout(object):
     def _readout_func(self, x):
         raise NotImplementedError("Subclasses should implement this!")
     
+    
     def __call__(self, x):
         return self._readout_func(x)
 
@@ -293,6 +294,13 @@ class BreadthFirstReadout(AbstractReadout):
     def _readout_func(self, x):
         # drop the pseudo root node
         return torch.stack([x.data for x in LevelOrderIter(x) if x.level in self.levels])
+
+
+class UpwardsReadout(AbstractReadout):
+    
+    def _readout_func(self, x):
+        # drop the pseudo root node
+        return torch.stack([x.data for x in PostOrderIter(x) if x.level in self.levels])
                 
 
 class OneOf(object):
@@ -331,7 +339,8 @@ def get_train_transforms(num_levels, downsample_factor, lowest_level, dropout, v
         TreeDropOut(num_levels, dropout),
         OneOf([
             DepthFirstReadout(levels=visible_levels),
-            BreadthFirstReadout(levels=visible_levels)
+            BreadthFirstReadout(levels=visible_levels),
+            UpwardsReadout(levels=visible_levels)
         ])
     ])
 
