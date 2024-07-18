@@ -26,7 +26,7 @@ def train(dataloaders, model, criteria, optimizer, scheduler, args, logger):
         if isinstance(train_loader.sampler, DistributedSampler):
             train_loader.sampler.set_epoch(epoch)
         for i, (_, img, label) in enumerate(train_loader):
-            img, label = img.cuda(non_blocking=True), label.cuda(non_blocking=True).long()
+            img, label = img.cuda(non_blocking=True), label.cuda(non_blocking=True)
             outputs = model(img)
             logits = outputs.logits
 
@@ -134,15 +134,12 @@ def train_experts(dataloaders, model, criteria, optimizer, scheduler, args, logg
                 img = [x.cuda(non_blocking=True) for x in img]
             else:
                 img = img.cuda(non_blocking=True)
-            label = label.cuda(non_blocking=True).long()
+            label = label.cuda(non_blocking=True)
             outputs = model(img)
             features, logits, moe_features, moe_logits = outputs.features, outputs.logits, outputs.moe_features, outputs.moe_logits
 
             # classification loss
-            
-            
-
-            cls_loss = criteria(logits.view(args.n_experts, -1), label.repeat(args.n_experts))
+            cls_loss = criteria(logits.view(args.n_experts * args.batch_size, -1), label.repeat(args.n_experts))
             loss  = cls_loss
             train_overall_cls_loss = 0
             train_logits_loss = 0

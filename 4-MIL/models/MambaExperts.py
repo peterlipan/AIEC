@@ -38,7 +38,7 @@ class MambaExperts(nn.Module):
         self.aggregation = aggregation
 
         for _ in range(n_experts):
-            temp = [nn.Linear(d_in, d_model, bias=False), nn.GELU(), nn.Dropout(dropout)]
+            temp = [nn.Linear(d_in, d_model, bias=True), nn.GELU(), nn.Dropout(dropout)]
             temp.append(MyMamba(config=self.config) if pretrained else OfficialMamba(d_model=self.d_model, d_state=self.d_state, layers=self.layers, mamba2=False))
             # temp = MyMamba(config=self.confg) if pretrained else OfficialMamba(d_model=self.d_model, d_state=self.d_state, layers=self.layers, mamba2=False)
             temp = nn.Sequential(*temp)
@@ -48,14 +48,14 @@ class MambaExperts(nn.Module):
         self.aggregate = Aggregator(aggregation)
 
     def forward(self, x):
-        # x: list, [n_views, 1, L, C]
+        # x: tensor, [B, seq_len, n_views, d_in]
         # features: [B, n_views, d_model]
         # logits: [B, n_views, n_classes]
         features = []
         logits = []
         # x = [self._fc1(view) for view in x]
         for i, expert in enumerate(self.experts):
-            exp = self.norm(expert(x[i]))
+            exp = self.norm(expert(x[..., i, :]))
             exp = self.aggregate(exp)
             pred = self.classifier(exp)
             features.append(exp)

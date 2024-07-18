@@ -21,7 +21,7 @@ tree_dropout: [0.01, 0.05, 0.1]
 visible_levels: [0, 1, 2]
 
 # Model options
-backbone: "Experts"
+backbone: "MambaAgents"
 n_experts: 8
 dropout: 0.5
 activation: "gelu"
@@ -34,7 +34,7 @@ pretrained: ""
 
 # training options
 seed: 42
-batch_size: 1
+batch_size: 2
 epochs: 200
 fold: 0
 
@@ -45,5 +45,5 @@ scheduler: True
 weight_decay: 0.05
 warmup_epochs: 15
 lambda_xsam: 0
-lambda_xview: 1.0e+3
-lambda_cls: 1
+lambda_xview: 0
+lambda_cls: 0

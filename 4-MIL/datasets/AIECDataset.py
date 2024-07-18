@@ -3,6 +3,7 @@ import torch
 import pathlib
 import pandas as pd
 from torch.utils.data import Dataset
+from torch.nn.utils.rnn import pad_sequence
 
 
 class AIECDataset(Dataset):
@@ -54,8 +55,18 @@ class AIECPyramidDataset(Dataset):
         if self.transforms is not None:
             # if a list of transforms, implement MoE
             if isinstance(self.transforms, list):
-                features = [transform(features) for transform in self.transforms]
+                # features: [seq_len, n_views, n_features]
+                features = pad_sequence([transform(features) for transform in self.transforms], batch_first=False)
             else:
+                # features: [seq_len, n_features]
                 features = self.transforms(features)
         label = self.labels[idx]
         return wsi_name, features, label
+
+    @staticmethod
+    def collate_fn(batch):
+        wsi_names, features, labels = zip(*batch)
+        # features: [batch_size, seq_len, n_views, n_features] for multiple views
+        features = pad_sequence(features, batch_first=True).float()
+        labels = torch.tensor(labels).long()
+        return wsi_names, features, labels

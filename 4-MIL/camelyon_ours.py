@@ -33,7 +33,7 @@ def main(gpu, args, wandb_logger):
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
 
-    if 'expert' in args.backbone.lower():
+    if 'expert' in args.backbone.lower() or 'agents' in args.backbone.lower():
         train_transforms = experts_train_transforms(n_experts=args.n_experts, num_levels=args.num_levels, downsample_factor=args.downsample_factor, lowest_level=args.lowest_level, dropout=args.tree_dropout, visible_levels=args.visible_levels)
         test_transforms = experts_test_transforms(n_experts=args.n_experts, num_levels=args.num_levels, downsample_factor=args.downsample_factor, lowest_level=args.lowest_level, visible_levels=args.visible_levels)
     else:
@@ -57,13 +57,14 @@ def main(gpu, args, wandb_logger):
         batch_size=args.batch_size,
         shuffle=(train_sampler is None),
         drop_last=True,
+        collate_fn=train_dataset.collate_fn,
         num_workers=args.workers,
         sampler=train_sampler,
         pin_memory=True,
     )
     if rank == 0:
         test_dataset = CAMELYON16Dataset(args.data_root, args.csv_path, training=False, transforms=train_transforms)
-        test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False,
+        test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, collate_fn=test_dataset.collate_fn,
         num_workers=args.workers, pin_memory=True)
     else:
         test_loader = None
