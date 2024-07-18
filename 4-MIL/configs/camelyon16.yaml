@@ -17,11 +17,11 @@ feature_dim: 1024
 num_levels: 3
 lowest_level: 0
 downsample_factor: 4
-tree_dropout: [0, 0, 0]
-visible_levels: [0]
+tree_dropout: [0.01, 0.05, 0.1]
+visible_levels: [0, 1, 2]
 
 # Model options
-backbone: "TransMIL"
+backbone: "Experts"
 n_experts: 8
 dropout: 0.5
 activation: "gelu"
@@ -45,5 +45,5 @@ scheduler: True
 weight_decay: 0.05
 warmup_epochs: 15
 lambda_xsam: 0
-lambda_xview: 0
+lambda_xview: 1.0e+3
 lambda_cls: 1

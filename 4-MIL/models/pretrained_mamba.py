@@ -1,5 +1,6 @@
 from torch import nn
 from mamba_ssm import Mamba, Mamba2
+from .MambaMIL import SRMamba
 from transformers import MambaConfig
 from transformers.models.mamba.modeling_mamba import MambaBlock, MambaRMSNorm, MambaPreTrainedModel, MambaCache
 
@@ -76,7 +77,7 @@ class OfficialMamba(nn.Module):
                 self.model.append(
                     nn.Sequential(
                         nn.LayerNorm(d_model),
-                        Mamba(d_model=d_model, d_state=d_state, d_conv=4, expand=2),
+                        SRMamba(d_model=d_model, d_state=d_state, d_conv=4, expand=2),
                         )
                     )
     

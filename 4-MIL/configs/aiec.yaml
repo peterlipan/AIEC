@@ -19,6 +19,7 @@ num_levels: 3
 lowest_level: 0
 downsample_factor: 2
 tree_dropout: [0.05, 0.1, 0.2]
+visible_levels: [0, 1, 2]
 
 # Model options
 backbone: "MambaMIL"

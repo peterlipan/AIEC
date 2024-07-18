@@ -20,15 +20,15 @@ class MambaExperts(nn.Module):
             self.d_state = d_state
             self.layers = layers
 
-        self._fc1 = [nn.Linear(d_in, d_model, bias=False)]
-        if act.lower() == 'relu':
-            self._fc1 += [nn.ReLU()]
-        elif act.lower() == 'gelu':
-            self._fc1 += [nn.GELU()]
-        if dropout:
-            self._fc1 += [nn.Dropout(dropout)]
+        # self._fc1 = [nn.Linear(d_in, d_model, bias=False)]
+        # if act.lower() == 'relu':
+        #     self._fc1 += [nn.ReLU()]
+        # elif act.lower() == 'gelu':
+        #     self._fc1 += [nn.GELU()]
+        # if dropout:
+        #     self._fc1 += [nn.Dropout(dropout)]
 
-        self._fc1 = nn.Sequential(*self._fc1)
+        # self._fc1 = nn.Sequential(*self._fc1)
         
         self.n_experts = n_experts
         self.norm = nn.LayerNorm(d_model)
@@ -38,7 +38,10 @@ class MambaExperts(nn.Module):
         self.aggregation = aggregation
 
         for _ in range(n_experts):
-            temp = MyMamba(config=self.confg) if pretrained else OfficialMamba(d_model=self.d_model, d_state=self.d_state, layers=self.layers, mamba2=False)
+            temp = [nn.Linear(d_in, d_model, bias=False), nn.GELU(), nn.Dropout(dropout)]
+            temp.append(MyMamba(config=self.config) if pretrained else OfficialMamba(d_model=self.d_model, d_state=self.d_state, layers=self.layers, mamba2=False))
+            # temp = MyMamba(config=self.confg) if pretrained else OfficialMamba(d_model=self.d_model, d_state=self.d_state, layers=self.layers, mamba2=False)
+            temp = nn.Sequential(*temp)
             self.experts.append(temp)
             
         self.classifier = nn.Linear(self.d_model, n_classes)
@@ -50,7 +53,7 @@ class MambaExperts(nn.Module):
         # logits: [B, n_views, n_classes]
         features = []
         logits = []
-        x = [self._fc1(view) for view in x]
+        # x = [self._fc1(view) for view in x]
         for i, expert in enumerate(self.experts):
             exp = self.norm(expert(x[i]))
             exp = self.aggregate(exp)
