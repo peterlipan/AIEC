@@ -65,6 +65,7 @@ class MambaAgents(nn.Module):
     def forward(self, x):
         # x: [B, seq_len, n_views, d_in]
         # h: [B, seq_len, n_views, d_model]
+        bs = x.size(0)
         h = self.in_proj(x)
         
         for layer in self.agent_layers:
@@ -75,7 +76,8 @@ class MambaAgents(nn.Module):
         # merge the views
         # h: [B, seq_len, d_model]
         h = h.mean(dim=2)
-        h = torch.cat((self.cls_token, h), dim=1)
+        h = torch.cat((self.cls_token.expand(bs, -1, -1), h), dim=1)
+        # h = torch.cat((self.cls_token, h), dim=1)
         h = self.post_agent(h)
         
         # average pooling to get WSI-level features
