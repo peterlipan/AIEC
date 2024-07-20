@@ -76,7 +76,13 @@ class MambaAgents(nn.Module):
         # h: [B, seq_len, d_model]
         h = h.mean(dim=2)
         print(h.shape)
-        h = torch.cat((self.cls_token, h), dim=1)
+        try:
+            h = torch.cat((self.cls_token, h), dim=1)
+        except Exception:
+            print("Error!")
+            print(h.shape)
+            print(self.cls_token.shape)
+            raise
         h = self.post_agent(h)
         
         # average pooling to get WSI-level features
