@@ -75,7 +75,6 @@ class MambaAgents(nn.Module):
         # merge the views
         # h: [B, seq_len, d_model]
         h = h.mean(dim=2)
-        print(h.shape)
         try:
             h = torch.cat((self.cls_token, h), dim=1)
         except Exception:
