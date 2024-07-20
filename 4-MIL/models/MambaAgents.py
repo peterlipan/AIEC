@@ -57,7 +57,7 @@ class MambaAgents(nn.Module):
         self.agent_layers = nn.ModuleList([MultiViewMamba(d_model, d_state, n_views) for _ in range(n_layers)])
         # self.post_agent = nn.ModuleList([nn.Sequential(nn.LayerNorm(d_model), Mamba(d_model=d_model, d_state=d_state, d_conv=4, expand=2)) for _ in range(n_layers)])
         self.post_agent = nn.Sequential(*[TransLayer(dim=d_model) for _ in range(n_layers)])
-        self.cls_token = nn.Parameter(torch.randn(2, 1, d_model))
+        self.cls_token = nn.Parameter(torch.randn(1, 1, d_model))
         self.pool = nn.AdaptiveAvgPool1d(1)
         self.norm = nn.LayerNorm(d_model)
         self.classifier = nn.Linear(d_model, n_classes)
