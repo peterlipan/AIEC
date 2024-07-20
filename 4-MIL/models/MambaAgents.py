@@ -57,7 +57,9 @@ class MambaAgents(nn.Module):
         self.agent_layers = nn.ModuleList([MultiViewMamba(d_model, d_state, n_views) for _ in range(n_layers)])
         # self.post_agent = nn.ModuleList([nn.Sequential(nn.LayerNorm(d_model), Mamba(d_model=d_model, d_state=d_state, d_conv=4, expand=2)) for _ in range(n_layers)])
         self.post_agent = nn.Sequential(*[TransLayer(dim=d_model) for _ in range(n_layers)])
+        self.cls_token = nn.Parameter(torch.randn(1, 1, d_model))
         self.pool = nn.AdaptiveAvgPool1d(1)
+        self.norm = nn.LayerNorm(d_model)
         self.classifier = nn.Linear(d_model, n_classes)
 
     def forward(self, x):
@@ -73,10 +75,12 @@ class MambaAgents(nn.Module):
         # merge the views
         # h: [B, seq_len, d_model]
         h = h.mean(dim=2)
+        h = torch.cat((self.cls_token, h), dim=1)
         h = self.post_agent(h)
         
         # average pooling to get WSI-level features
-        features = self.pool(h.permute(0, 2, 1)).squeeze(-1)
+        # features = self.pool(h.permute(0, 2, 1)).squeeze(-1)
+        features = self.norm(h)[:, 0]
         logits = self.classifier(features)
 
         return ModelOutputs(features=features, logits=logits, hidden_states=h)

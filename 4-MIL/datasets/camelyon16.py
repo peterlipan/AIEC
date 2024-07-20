@@ -78,8 +78,6 @@ class DTFDDataset(Dataset):
                 sample_feature.append(torch.from_numpy(item['feature']))
             self.features.append(torch.stack(sample_feature, dim=0))
 
-                
-
     def __len__(self):
         return len(self.samples)
     
@@ -95,3 +93,10 @@ class DTFDDataset(Dataset):
         features = pad_sequence(features, batch_first=True).float()
         labels = torch.tensor(labels).long()
         return wsi_names, features, labels
+
+
+# Load each patch from WSI instead of features
+# End-to-end training
+class CamelyonEnd2End(Dataset):
+    def __init__(self, wsi_path, csv_path, training=True, transforms=False):
+        super().__init__()
