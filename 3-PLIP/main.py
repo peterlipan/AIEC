@@ -206,7 +206,7 @@ def main(rank, args, wandb_logger):
 if __name__ == '__main__':
     # args
     parser = argparse.ArgumentParser()
-    parser.add_argument('--visible_gpus', type=str, default='4,5,6,7')
+    parser.add_argument('--visible_gpus', type=str, default='0,1,2,3')
     parser.add_argument('--train_csv_path', type=str, default='./camelyon_training.csv')
     parser.add_argument('--test_csv_path', type=str, default='./camelyon_testing.csv')
     parser.add_argument('--backbone', type=str, default='resnet50')
