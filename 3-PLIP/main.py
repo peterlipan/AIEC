@@ -146,7 +146,7 @@ def main(rank, args, wandb_logger):
 
     transforms = Transforms(size=args.size)
 
-    train_dataset = PatchDataset(args.train_csv_path, transforms=transforms)
+    train_dataset = CoordinateDataset(args.train_csv_path, args.wsi_root, transforms=transforms)
 
     # set sampler for parallel training
     if args.world_size > 1:
@@ -167,7 +167,7 @@ def main(rank, args, wandb_logger):
     )
 
     if rank == 0:
-        test_dataset = PatchDataset(args.test_csv_path, transforms=transforms.test_transform)
+        test_dataset = CoordinateDataset(args.test_csv_path, args.wsi_root, transforms=transforms.test_transform)
         test_loader = DataLoader(
             test_dataset,
             batch_size=args.batch_size,
@@ -181,7 +181,7 @@ def main(rank, args, wandb_logger):
 
     dataloaders = (train_loader, test_loader)
 
-    n_classes = train_dataset.n_classes
+    n_classes = 2
     student = CreateModel(n_classes=n_classes, ema=False).cuda()
     teacher = CreateModel(n_classes=n_classes, ema=True).cuda()
 
@@ -209,6 +209,7 @@ if __name__ == '__main__':
     parser.add_argument('--visible_gpus', type=str, default='0,1,2,3')
     parser.add_argument('--train_csv_path', type=str, default='./camelyon_training.csv')
     parser.add_argument('--test_csv_path', type=str, default='./camelyon_testing.csv')
+    parser.add_argument('--wsi_root', type=str, default='/mnt/zhen_chen/CAMELYON16')
     parser.add_argument('--backbone', type=str, default='resnet50')
     parser.add_argument('--batch_size', type=int, default=24)
     parser.add_argument('--temperature', type=float, default=0.5)
