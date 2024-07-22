@@ -13,28 +13,51 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DataLoader
 from dataset import Transforms, PatchDataset
 from models import CreateModel
-from loss import NT_Xent
+from loss import ProbabilityLoss, BatchLoss, ChannelLoss
 
 
-def train(args, train_loader, model, criterion, optimizer, writer):
+def update_ema_variables(student, teacher, alpha, global_step):
+    # Use the true average until the exponential average is more correct
+    alpha = min(1 - 1 / (global_step + 1), alpha)
+    for ema_param, param in zip(teacher.parameters(), student.parameters()):
+        ema_param.data.mul_(alpha).add_(1 - alpha, param.data)
+
+
+def train(args, train_loader, student_model, teacher_model, optimizer, writer):
     loss_epoch = 0
-    for step, ((x_i, x_j), _) in enumerate(train_loader):
-        optimizer.zero_grad()
-        x_i = x_i.cuda(non_blocking=True)
-        x_j = x_j.cuda(non_blocking=True)
+    probability_loss_func = ProbabilityLoss()
+    batch_sim_loss_func = BatchLoss(args.batch_size, args.world_size)
+    channel_sim_loss_func = ChannelLoss(args.batch_size, args.world_size)
+    ce_loss_func = nn.CrossEntropyLoss()
+    cur_iters = 0
+    for step, ((x_i, x_j), label) in enumerate(train_loader):
+
+        x_i, x_j, label = x_i.cuda(non_blocking=True), x_j.cuda(non_blocking=True), label.cuda(non_blocking=True).long()
 
         # positive pair, with encoding
-        h_i, h_j, z_i, z_j = model(x_i, x_j)
+        features, logits = student_model(x_i)
+        with torch.no_grad():
+            teacher_features, teacher_logits = teacher_model(x_j)
 
-        loss = criterion(z_i, z_j)
+        cls_loss = ce_loss_func(logits, label)
+        probability_loss = probability_loss_func(logits, teacher_logits)
+        batch_sim_loss = batch_sim_loss_func(features, teacher_features)
+        channel_sim_loss = channel_sim_loss_func(features, teacher_features)
+
+        loss = cls_loss + 5 * probability_loss + 10 * batch_sim_loss + 10 * channel_sim_loss
+
+        optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+        # update the teacher model
+        update_ema_variables(student_model, teacher_model, alpha=0.999, global_step=step)
 
         if dist.is_available() and dist.is_initialized():
             loss = loss.data.clone()
             dist.all_reduce(loss.div_(dist.get_world_size()))
 
-        if args.rank == 0 and step % 50 == 0:
+        cur_iters += 1
+        if args.rank == 0 and cur_iters % 50 == 0:
             print(f"Step [{step}/{len(train_loader)}]\t Loss: {loss.item()}")
             if writer is not None:
                 writer.log({'loss': loss.item()})
@@ -80,26 +103,26 @@ def main(rank, args, wandb_logger):
         pin_memory=True,
     )
 
-    model = CreateModel(args.backbone)
-    model = model.cuda()
+    n_classes = train_dataset.n_classes
+    student = CreateModel(n_classes=n_classes, ema=False).cuda()
+    teacher = CreateModel(n_classes=n_classes, ema=True).cuda()
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
-    criteria = NT_Xent(args.batch_size, args.temperature, args.world_size)
+    optimizer = torch.optim.AdamW(student.parameters(), lr=args.lr)
 
     if args.world_size > 1:
-        model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
-        model = DDP(model, device_ids=[rank])
+        student = torch.nn.SyncBatchNorm.convert_sync_batchnorm(student)
+        student = DDP(student, device_ids=[rank])
     
     loss_min = 1e9
     for epoch in range(args.epochs):
-        model.train()
-        loss_epoch = train(args, train_loader, model, criteria, optimizer, wandb_logger)
+        student.train()
+        loss_epoch = train(args, train_loader, student, teacher, optimizer, wandb_logger)
 
         if args.rank == 0:
             print(f"Epoch [{epoch}/{args.epochs}]\t Loss: {loss_epoch / len(train_loader)}")
             if loss_epoch / len(train_loader) < loss_min:
                 loss_min = loss_epoch / len(train_loader)
-                torch.save(model.module.encoder.state_dict(), f"best_{args.backbone}.pth")
+                torch.save(student.module.encoder.state_dict(), f"best_{args.backbone}.pth")
 
 
 if __name__ == '__main__':

@@ -1,5 +1,30 @@
+import timm
+import torch
 import torchvision
 import torch.nn as nn
+
+
+class TimmCNNEncoder(torch.nn.Module):
+    def __init__(self, model_name: str = 'resnet50.tv_in1k',
+                 kwargs: dict = {'features_only': True, 'out_indices': (3,), 'pretrained': True, 'num_classes': 0},
+                 pool: bool = True):
+        super().__init__()
+        assert kwargs.get('pretrained', False), 'only pretrained models are supported'
+        self.model = timm.create_model(model_name, **kwargs)
+        self.model_name = model_name
+        if pool:
+            self.pool = torch.nn.AdaptiveAvgPool2d(1)
+        else:
+            self.pool = None
+
+    def forward(self, x):
+        out = self.model(x)
+        if isinstance(out, list):
+            assert len(out) == 1
+            out = out[0]
+        if self.pool:
+            out = self.pool(out).squeeze(-1).squeeze(-1)
+        return out
 
 
 class Identity(nn.Module):
@@ -11,30 +36,19 @@ class Identity(nn.Module):
 
 
 class CreateModel(nn.Module):
-    def __init__(self, backbone='densenet121'):
+    def __init__(self,  n_classes=4, ema=False):
         super().__init__()
-        self.encoder = getattr(torchvision.models, backbone)(pretrained=True)
+        self.encoder = TimmCNNEncoder()
+        self.classifier = nn.Linear(1024, n_classes)
 
-        if backbone.startswith('resnet'):
-            n_features = self.encoder.fc.in_features
-            self.encoder.fc = Identity()
-        elif backbone.startswith('densenet'):
-            n_features = self.encoder.classifier.in_features
-            self.encoder.classifier = Identity()
-        elif backbone.startswith('efficientnet'):
-            n_features = self.encoder.classifier[1].in_features
-            self.encoder.classifier = Identity()
-        
-        self.projector = nn.Sequential(
-            nn.Linear(n_features, n_features, bias=False),
-            nn.ReLU(),
-            nn.Linear(n_features, 128, bias=False),
-        )
-    def forward(self, x_i, x_j):
-        
-        h_i = self.encoder(x_i)
-        h_j = self.encoder(x_j)
+        if ema:
+            for param in self.encoder.parameters():
+                param.requires_grad = False
+            for param in self.classifier.parameters():
+                param.requires_grad = True
 
-        z_i = self.projector(h_i)
-        z_j = self.projector(h_j)
-        return h_i, h_j, z_i, z_j
+    def forward(self, x):
+        
+        features = self.encoder(x)
+        logits = self.classifier(features)
+        return features, logits

@@ -1,4 +1,5 @@
 import os
+import openslide
 import numpy as np
 import pandas as pd
 from PIL import Image
@@ -45,9 +46,9 @@ class Transforms:
                     A.ElasticTransform(),
                     A.OpticalDistortion(),
                 ], p=0.7),
-                A.RGBShift(r_shift_limit=15, g_shift_limit=15, b_shift_limit=15, p=0.5),
+                # A.RGBShift(r_shift_limit=15, g_shift_limit=15, b_shift_limit=15, p=0.5),
                 A.RandomBrightnessContrast(p=0.5),
-                A.Solarize(p=0.2),
+                # A.Solarize(p=0.2),
                 A.GridDropout(p=0.2),
                 A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
                 ToTensorV2(),
@@ -75,7 +76,7 @@ class PatchDataset(Dataset):
         self.paths = self.patch_info['path'].values
         self.labels = self.patch_info['label'].values
         self.transforms = transforms
-    
+        self.n_classes = len(np.unique(self.labels))
 
     def __len__(self):
         return self.patch_info.shape[0]
@@ -87,3 +88,36 @@ class PatchDataset(Dataset):
         if self.transforms:
             image = self.transforms(image)
         return image, label
+
+
+class CoordinateDataset(Dataset):
+    def __init__(self, csv_path, wsi_root, transform):
+        self.csv = pd.read_csv(csv_path)
+        self.wsi_root = wsi_root
+        self.transform = transform
+
+    def __len__(self):
+        return self.csv.shape[0]
+
+    def __getitem__(self, idx):
+        row = self.csv.iloc[idx]
+        slide_id = row['slide_id']
+        i = row['i']
+        j = row['j']
+        base_level = row['base_level']
+        level = row['cur_level']
+        label = row['label']
+        downsample_factor = row['downsample_factor']
+        patch_size = row['patch_size']
+        slide_path = os.path.join(self.wsi_root, slide_id)
+        slide = openslide.OpenSlide(slide_path)
+        if level == 'overview':
+            dimensions = slide.level_dimensions[-1]
+            fetch_level = len(slide.level_dimensions) - 1
+        else:
+            dimensions = patch_size * downsample_factor ** int(level.split('_')[-1])
+            dimensions = (dimensions, dimensions)
+            fetch_level = base_level
+        img = slide.read_region((i, j), fetch_level, dimensions).convert('RGB')
+        img = self.transform(img)
+        return img, label

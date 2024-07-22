@@ -21,49 +21,76 @@ class GatherLayer(torch.autograd.Function):
         return grad_out
 
 
-class NT_Xent(nn.Module):
-    def __init__(self, batch_size, temperature, world_size):
-        super(NT_Xent, self).__init__()
+class ProbabilityLoss(nn.Module):
+    def __init__(self):
+        super(ProbabilityLoss, self).__init__()
+        self.softmax = nn.Softmax(dim=-1)
+        self.criterion = nn.KLDivLoss(reduction='batchmean')
+
+    def forward(self, logits1, logits2):
+        assert logits1.size() == logits2.size()
+        softmax1 = self.softmax(logits1)
+        softmax2 = self.softmax(logits2)
+
+        probability_loss = self.criterion(softmax1.log(), softmax2)
+        return probability_loss
+
+
+class BatchLoss(nn.Module):
+    def __init__(self, batch_size, world_size):
+        super(BatchLoss, self).__init__()
         self.batch_size = batch_size
-        self.temperature = temperature
         self.world_size = world_size
 
-        self.mask = self.mask_correlated_samples(batch_size, world_size)
-        self.criterion = nn.CrossEntropyLoss(reduction="sum")
-        self.similarity_f = nn.CosineSimilarity(dim=2)
-
-    def mask_correlated_samples(self, batch_size, world_size):
-        N = 2 * batch_size * world_size
-        mask = torch.ones((N, N), dtype=bool)
-        mask = mask.fill_diagonal_(0)
-        for i in range(batch_size * world_size):
-            mask[i, batch_size * world_size + i] = 0
-            mask[batch_size * world_size + i, i] = 0
-        return mask
-
-    def forward(self, z_i, z_j):
-        """
-        We do not sample negative examples explicitly.
-        Instead, given a positive pair, similar to (Chen et al., 2017), we treat the other 2(N − 1) augmented examples within a minibatch as negative examples.
-        """
-        N = 2 * self.batch_size * self.world_size
-
+    def forward(self, activations, ema_activations):
+        assert activations.size() == ema_activations.size()
+        N = self.batch_size * self.world_size
+        # gather data from all the processes
         if self.world_size > 1:
-            z_i = torch.cat(GatherLayer.apply(z_i), dim=0)
-            z_j = torch.cat(GatherLayer.apply(z_j), dim=0)
-        z = torch.cat((z_i, z_j), dim=0)
+            activations = torch.cat(GatherLayer.apply(activations), dim=0)
+            ema_activations = torch.cat(GatherLayer.apply(ema_activations), dim=0)
+        # reshape as N*C
+        activations = activations.view(N, -1)
+        ema_activations = ema_activations.view(N, -1)
 
-        sim = self.similarity_f(z.unsqueeze(1), z.unsqueeze(0)) / self.temperature
+        # form N*N similarity matrix
+        similarity = activations.mm(activations.t())
+        norm = torch.norm(similarity, 2, 1).view(-1, 1)
+        similarity = similarity / norm
 
-        sim_i_j = torch.diag(sim, self.batch_size * self.world_size)
-        sim_j_i = torch.diag(sim, -self.batch_size * self.world_size)
+        ema_similarity = ema_activations.mm(ema_activations.t())
+        ema_norm = torch.norm(ema_similarity, 2, 1).view(-1, 1)
+        ema_similarity = ema_similarity / ema_norm
 
-        # We have 2N samples, but with Distributed training every GPU gets N examples too, resulting in: 2xNxN
-        positive_samples = torch.cat((sim_i_j, sim_j_i), dim=0).reshape(N, 1)
-        negative_samples = sim[self.mask].reshape(N, -1)
+        batch_loss = (similarity - ema_similarity) ** 2 / N
+        return batch_loss
 
-        labels = torch.zeros(N).to(positive_samples.device).long()
-        logits = torch.cat((positive_samples, negative_samples), dim=1)
-        loss = self.criterion(logits, labels)
-        loss /= N
-        return loss
+
+class ChannelLoss(nn.Module):
+    def __init__(self, batch_size, world_size):
+        super(ChannelLoss, self).__init__()
+        self.batch_size = batch_size
+        self.world_size = world_size
+
+    def forward(self, activations, ema_activations):
+        assert activations.size() == ema_activations.size()
+        N = self.batch_size * self.world_size
+        # gather data from all the processes
+        if self.world_size > 1:
+            activations = torch.cat(GatherLayer.apply(activations), dim=0)
+            ema_activations = torch.cat(GatherLayer.apply(ema_activations), dim=0)
+        # reshape as N*C
+        activations = activations.view(N, -1)
+        ema_activations = ema_activations.view(N, -1)
+
+        # form C*C channel-wise similarity matrix
+        similarity = activations.t().mm(activations)
+        norm = torch.norm(similarity, 2, 1).view(-1, 1)
+        similarity = similarity / norm
+
+        ema_similarity = ema_activations.t().mm(ema_activations)
+        ema_norm = torch.norm(ema_similarity, 2, 1).view(-1, 1)
+        ema_similarity = ema_similarity / ema_norm
+
+        channel_loss = (similarity - ema_similarity) ** 2 / N
+        return channel_loss

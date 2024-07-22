@@ -1,26 +1,40 @@
 import os
+import h5py
+from pathlib import Path
 from tqdm import tqdm
 import pandas as pd
 
 
-csv_path = '/mnt/zhen_chen/AIEC/4-MIL/aiec_info.csv'
-dara_root = '/mnt/zhen_chen/pyramid_patches_512'
+csv_path = '/mnt/zhen_chen/patches_CAMELYON16/status.csv'
+dara_root = '/mnt/zhen_chen/coordinates_CAMELYON16_pruned'
+test_csv = '/mnt/zhen_chen/AIEC/4-MIL/reference.csv'
 num_levels = 3
-df = pd.DataFrame(columns=['slide_id', 'diagnosis', 'label', 'path'])
+df = pd.DataFrame(columns=['slide_id', 'i', 'j', 'patch_size', 'downsample_factor',
+                           'base_level', 'cur_level', 'label'])
 
 slide_info = pd.read_csv(csv_path)
-label2num = {'MMRd': 0, 'NSMP': 1, 'P53abn': 2, 'POLEmut': 3}
+label2num = {'normal': 0, 'tumor': 1}
 
 for i in tqdm(range(slide_info.shape[0]), desc='WSI', position=0):
+    status = slide_info.iloc[i]['status']
     slide_id = slide_info.iloc[i]['slide_id']
-    diagnosis = slide_info.iloc[i]['diagnosis']
-    label = label2num[diagnosis]
-    overview_path = os.path.join(dara_root, diagnosis, 'patches', slide_id, 'overview.png')
-    df = df._append({'slide_id': slide_id, 'diagnosis': diagnosis, 'label': label, 'path': overview_path}, ignore_index=True)
-    for level in tqdm(range(num_levels), desc='level', position=1, leave=False):
-        cur_level = f'level_{level}'
-        cur_path = os.path.join(dara_root, diagnosis, 'patches', slide_id, cur_level)
-        for patch in tqdm(os.listdir(cur_path), desc='patch', position=2, leave=False):
-            patch_path = os.path.join(cur_path, patch)
-            df = df._append({'slide_id': slide_id, 'diagnosis': diagnosis, 'label': label, 'path': patch_path}, ignore_index=True)
-df.to_csv('./patch_info.csv', index=False)
+    if status != 'done' or slide_id.startswith('test_'):
+        continue
+    slide_name = Path(slide_id).stem
+    label = label2num[slide_name.split('_')[0]]
+    h5_path = os.path.join(dara_root, f"{slide_name}.h5")
+    with h5py.File(h5_path, 'r') as f:
+        base_level = f.attrs['base_level']
+        patch_size = f.attrs['patch_size']
+        downsample_factor = f.attrs['downsample_factor']
+        df = df._append({'slide_id': slide_id, 'i': 0, 'j': 0, 'patch_size': patch_size, 'downsample_factor': downsample_factor,
+                         'base_level': base_level, 'cur_level': 'overview', 'label': label}, ignore_index=True)
+        for level in range(num_levels):
+            level_name = f'level_{level}'
+            level_coords = f[level_name][:]
+            for x in range(level_coords.shape[0]):
+                for y in range(level_coords.shape[1]):
+                    if all(level_coords[x, y] != -1):
+                        df = df._append({'slide_id': slide_id, 'i': x, 'j': y, 'patch_size': patch_size, 'downsample_factor': downsample_factor,
+                                         'base_level': base_level, 'cur_level': level_name, 'label': label}, ignore_index=True)
+df.to_csv('./camelyon.csv', index=False)
