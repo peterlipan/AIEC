@@ -240,7 +240,6 @@ if __name__ == '__main__':
         )
     else:
         wandb_logger = None
-    
 
     mp.spawn(main, args=(args, wandb_logger, ), nprocs=args.world_size, join=True)
 

@@ -62,7 +62,7 @@ class BatchLoss(nn.Module):
         ema_norm = torch.norm(ema_similarity, 2, 1).view(-1, 1)
         ema_similarity = ema_similarity / ema_norm
 
-        batch_loss = (similarity - ema_similarity) ** 2 / N
+        batch_loss = torch.sum((similarity - ema_similarity) ** 2 / N)
         return batch_loss
 
 
@@ -92,5 +92,5 @@ class ChannelLoss(nn.Module):
         ema_norm = torch.norm(ema_similarity, 2, 1).view(-1, 1)
         ema_similarity = ema_similarity / ema_norm
 
-        channel_loss = (similarity - ema_similarity) ** 2 / N
+        channel_loss = torch.sum((similarity - ema_similarity) ** 2 / N)
         return channel_loss
