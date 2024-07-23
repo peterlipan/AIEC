@@ -91,10 +91,12 @@ class PatchDataset(Dataset):
 
 
 class CoordinateDataset(Dataset):
-    def __init__(self, csv_path, wsi_root, transforms):
+    def __init__(self, csv_path, wsi_root, transforms, training=True):
         self.csv = pd.read_csv(csv_path)
         self.wsi_root = wsi_root
         self.transform = transforms
+        if not training:
+            self.csv = self.csv.sample(n=2024)
 
     def __len__(self):
         return self.csv.shape[0]

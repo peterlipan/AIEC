@@ -83,6 +83,7 @@ def train(args, dataloaders, student_model, teacher_model, optimizer, writer):
     channel_sim_loss_func = ChannelLoss(args.batch_size, args.world_size)
     ce_loss_func = nn.CrossEntropyLoss()
     train_loader, test_loader = dataloaders
+    test_acc = 0
     for step, ((x_i, x_j), label) in enumerate(train_loader):
 
         x_i, x_j, label = x_i.cuda(non_blocking=True), x_j.cuda(non_blocking=True), label.cuda(non_blocking=True).long()
@@ -111,20 +112,24 @@ def train(args, dataloaders, student_model, teacher_model, optimizer, writer):
 
         if args.rank == 0 and (step % 50 == 0 or step == len(train_loader) - 1):
             print(f"Step [{step}/{len(train_loader)}]\t Loss: {loss.item()}")
-            test_acc, test_f1, test_auc, test_ap, test_bac, test_sens, test_spec, test_prec, test_mcc, test_kappa = validate(
-                test_loader, student_model)
             if writer is not None:
-                writer.log({'test': {'Accuracy': test_acc,
-                                     'F1 score': test_f1,
-                                     'AUC': test_auc,
-                                     'AP': test_ap,
-                                     'Balanced Accuracy': test_bac,
-                                     'Sensitivity': test_sens,
-                                     'Specificity': test_spec,
-                                     'Precision': test_prec,
-                                     'MCC': test_mcc,
-                                     'Kappa': test_kappa},
-                            'train': {'loss': loss.item(),}}, )
+                writer.log({'train': {'loss': loss.item(),}}, )
+
+    
+    if args.rank == 0:
+        test_acc, test_f1, test_auc, test_ap, test_bac, test_sens, test_spec, test_prec, test_mcc, test_kappa = validate(
+        test_loader, student_model)
+        if writer is not None:
+            writer.log({'test': {'Accuracy': test_acc,
+                                    'F1 score': test_f1,
+                                    'AUC': test_auc,
+                                    'AP': test_ap,
+                                    'Balanced Accuracy': test_bac,
+                                    'Sensitivity': test_sens,
+                                    'Specificity': test_spec,
+                                    'Precision': test_prec,
+                                    'MCC': test_mcc,
+                                    'Kappa': test_kappa}}, )
 
     return test_acc
 
@@ -167,7 +172,7 @@ def main(rank, args, wandb_logger):
     )
 
     if rank == 0:
-        test_dataset = CoordinateDataset(args.test_csv_path, args.wsi_root, transforms=transforms.test_transform)
+        test_dataset = CoordinateDataset(args.test_csv_path, args.wsi_root, transforms=transforms.test_transform, training=False)
         test_loader = DataLoader(
             test_dataset,
             batch_size=args.batch_size,
@@ -211,13 +216,13 @@ if __name__ == '__main__':
     parser.add_argument('--test_csv_path', type=str, default='./camelyon_testing.csv')
     parser.add_argument('--wsi_root', type=str, default='/mnt/zhen_chen/CAMELYON16')
     parser.add_argument('--backbone', type=str, default='resnet50')
-    parser.add_argument('--batch_size', type=int, default=24)
+    parser.add_argument('--batch_size', type=int, default=36)
     parser.add_argument('--temperature', type=float, default=0.5)
     parser.add_argument('--epochs', type=int, default=10)
-    parser.add_argument('--workers', type=int, default=8)
+    parser.add_argument('--workers', type=int, default=16)
     parser.add_argument('--lr', type=float, default=3e-4)
     parser.add_argument('--seed', type=int, default=42)
-    parser.add_argument('--size', type=int, default=512)
+    parser.add_argument('--size', type=int, default=256)
     parser.add_argument('--debug', action='store_true')
     args = parser.parse_args()
 
