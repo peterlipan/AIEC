@@ -106,6 +106,9 @@ def get_encoder(model_name, target_img_size=256, finetuned=''):
 
     if model_name == 'resnet50_trunc':
         model = TimmCNNEncoder()
+        if finetuned:
+            print(f'Loading finetuned model from {finetuned}')
+            model.load_state_dict(torch.load(finetuned))
         feature_dim = 1024
     elif model_name == 'uni_v1':
         feature_dim = 1024

@@ -47,7 +47,7 @@ def main(rank, csv, args):
     dist.init_process_group("nccl", rank=rank, world_size=args.world_size)
     torch.cuda.set_device(rank)
 
-    finetuned_model_path = f"/mnt/zhen_chen/AIEC/3-PLIP/best_{args.backbone}.pth"
+    finetuned_model_path = f"/mnt/zhen_chen/AIEC/1-Preprocessing/timm_patch_training.pth"
     if not os.path.exists(finetuned_model_path):
         print(f"Finetuned model for {args.backbone} not found, using pretrained model")
         finetuned_model_path = ''
@@ -88,7 +88,7 @@ if __name__ == '__main__':
     parser.add_argument('--csv_path', type=str, default='/mnt/zhen_chen/patches_CAMELYON16/status.csv')
     parser.add_argument('--wsi_dir', type=str, default='/mnt/zhen_chen/CAMELYON16')
     parser.add_argument('--h5_dir', type=str, default='/mnt/zhen_chen/coordinates_CAMELYON16_pruned')
-    parser.add_argument('--save_dir', type=str, default='/mnt/zhen_chen/features_CAMELYON16_CLAM')
+    parser.add_argument('--save_dir', type=str, default='/mnt/zhen_chen/features_CAMELYON16_finetuned')
     parser.add_argument('--backbone', type=str, default='resnet50_trunc')
     parser.add_argument('--patch_size', type=int, default=256)
     parser.add_argument('--batch_size', type=int, default=1024)

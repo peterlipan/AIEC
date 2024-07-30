@@ -14,7 +14,7 @@ class MyNode(AnyNode):
 
 
 class AbstractScan(object):
-    def __init__(self, num_levels, downsample_factor, lowest_level=0, p=1, p_i=.5, p_j=.5):
+    def __init__(self, num_levels, downsample_factor, lowest_level=0, p=1, p_i=.5, p_j=.5, mode='features'):
         self.num_levels = num_levels
         self.downsample_factor = downsample_factor
         self.lowest_level = lowest_level
@@ -23,9 +23,18 @@ class AbstractScan(object):
         self.p_j = p_j
         self.reverse_i = False
         self.reverse_j = False
+        self.mode = mode
     
     def _recursive_scan(self, cur_node: MyNode):
         raise NotImplementedError("Subclasses should implement this!")
+    
+    def _is_valid(self, sample):
+        if self.mode == 'features':
+            return torch.any(sample != 0)
+        elif self.mode == 'coordinates':
+            return torch.any(sample != -1)
+        else:
+            raise ValueError('Invalid mode')
     
     def __call__(self, data):
         if random.random() < self.p_i:
