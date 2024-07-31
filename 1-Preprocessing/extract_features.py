@@ -1,5 +1,6 @@
 import os
 import torch
+import pickle
 import pathlib
 import argparse
 import numpy as np
@@ -15,28 +16,35 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 
 def extract_features(model, level_shapes, feature_dim, dataloader):
     model.eval()
-    save_features = {}
-    wsi_features = torch.Tensor()
+    save_pt_features = {}
+    save_pkl_feautres = {}
+    wsi_pt_features = torch.Tensor()
+    wsi_pkl_features = []
     wsi_levels = []
     patch_coord_i = []
     patch_coord_j = []
     for level, shape in level_shapes.items():
-        save_features[level] = torch.zeros((shape[0], shape[1], feature_dim))
-    save_features['overview'] = torch.zeros((1, 1, feature_dim))
+        save_pt_features[level] = torch.zeros((shape[0], shape[1], feature_dim))
+        save_pkl_feautres[level] = np.zeros((shape[0], shape[1], feature_dim))
+    save_pt_features['overview'] = torch.zeros((1, 1, feature_dim))
+    save_pkl_feautres['overview'] = np.zeros((1, 1, feature_dim))
 
     with torch.no_grad():
         for i, (img, level, coord_i, coord_j) in enumerate(dataloader):
             img = img.cuda(non_blocking=True)
             features = model(img).cpu()
-            wsi_features = torch.cat((wsi_features, features))
+            wsi_pt_features = torch.cat((wsi_pt_features, features))
+            wsi_pkl_features.extend(features.data.numpy())
+
             wsi_levels.extend(level)
             patch_coord_i.extend(coord_i)
             patch_coord_j.extend(coord_j)
         
-        for f, l, i, j in zip(wsi_features, wsi_levels, patch_coord_i, patch_coord_j):
-            save_features[l][i, j] = f
+        for pt_f, pkl_f, l, i, j in zip(wsi_pt_features, wsi_pkl_features, wsi_levels, patch_coord_i, patch_coord_j):
+            save_pt_features[l][i, j] = pt_f
+            save_pkl_feautres[l][i, j] = pkl_f
 
-    return save_features
+    return save_pt_features, save_pkl_feautres
 
 def main(rank, csv, args):
     args.rank = rank
@@ -47,7 +55,7 @@ def main(rank, csv, args):
     dist.init_process_group("nccl", rank=rank, world_size=args.world_size)
     torch.cuda.set_device(rank)
 
-    finetuned_model_path = f"/mnt/zhen_chen/AIEC/1-Preprocessing/timm_patch_training.pth"
+    finetuned_model_path = ""
     if not os.path.exists(finetuned_model_path):
         print(f"Finetuned model for {args.backbone} not found, using pretrained model")
         finetuned_model_path = ''
@@ -67,20 +75,24 @@ def main(rank, csv, args):
             slide_path = os.path.join(args.wsi_dir, slide_id)
             coord_path = os.path.join(args.h5_dir, f'{slide_name}.h5')
             patch_path = os.path.join(args.h5_dir, 'patches', slide_name)
-            save_path = os.path.join(args.save_dir, 'pt_files', f'{slide_name}.pt')
+            save_pt_path = os.path.join(args.save_dir, 'pt_files', f'{slide_name}.pt')
+            save_pkl_path = os.path.join(args.save_dir, 'pkl_files', f'{slide_name}.pkl')
 
-            if os.path.exists(save_path) and not args.no_skip:
+            if os.path.exists(save_pt_path) and not args.no_skip:
                 print(f'{slide_name} already processed, skipping')
                 continue
             else:
-                os.makedirs(os.path.dirname(save_path), exist_ok=True)
+                os.makedirs(os.path.dirname(save_pt_path), exist_ok=True)
+                os.makedirs(os.path.dirname(save_pkl_path), exist_ok=True)
 
             slide_dataset = Whole_Slide_Bag(slide_path, coord_path, patch_path, img_transforms=transforms, mode=args.mode)
             dataloader = DataLoader(slide_dataset, batch_size=args.batch_size, num_workers=args.num_workers, shuffle=False, pin_memory=True)
             level_shapes = slide_dataset.shapes
-            wsi_features = extract_features(model, level_shapes, feature_dim, dataloader)
+            wsi_pt_features, wsi_pkl_features = extract_features(model, level_shapes, feature_dim, dataloader)
             
-            torch.save(wsi_features, save_path)
+            torch.save(wsi_pt_features, save_pt_path)
+            with open(save_pkl_path, 'wb') as pkl_file:
+                pickle.dump(wsi_pkl_features, pkl_file)
             print(f'{slide_name} processed and saved!!')
             
 if __name__ == '__main__':
@@ -88,8 +100,8 @@ if __name__ == '__main__':
     parser.add_argument('--csv_path', type=str, default='/mnt/zhen_chen/patches_CAMELYON16/status.csv')
     parser.add_argument('--wsi_dir', type=str, default='/mnt/zhen_chen/CAMELYON16')
     parser.add_argument('--h5_dir', type=str, default='/mnt/zhen_chen/coordinates_CAMELYON16_pruned')
-    parser.add_argument('--save_dir', type=str, default='/mnt/zhen_chen/features_CAMELYON16_finetuned')
-    parser.add_argument('--backbone', type=str, default='resnet50_trunc')
+    parser.add_argument('--save_dir', type=str, default='/mnt/zhen_chen/features_CAMELYON16_DTFD')
+    parser.add_argument('--backbone', type=str, default='resnet50_dtfd')
     parser.add_argument('--patch_size', type=int, default=256)
     parser.add_argument('--batch_size', type=int, default=1024)
     parser.add_argument('--num_workers', type=int, default=0)

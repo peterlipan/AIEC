@@ -78,6 +78,8 @@ class Whole_Slide_Bag(Dataset):
 
             # crop self.img with coords
             img = self.wsi.read_region(coord, self.base_level, (size, size)).convert('RGB')
+            # follow DTFD
+            img = img.resize((256, 256))
             img = self.img_transforms(img)
             return img, level, i, j
         
