@@ -1,3 +1,4 @@
+import os
 import torch
 import random
 import numpy as np
@@ -33,6 +34,8 @@ class AbstractScan(object):
             return torch.any(sample != 0)
         elif self.mode == 'coordinates':
             return torch.any(sample != -1)
+        elif self.mode == 'patches':
+            return os.path.exists(sample)
         else:
             raise ValueError('Invalid mode')
     
@@ -81,7 +84,7 @@ class HorizontalRasterScan(AbstractScan):
             for child_i in range_i:
                 for child_j in range_j:
                     temp_data = self.data[f'level_{child_level}'][child_i, child_j]
-                    if torch.all(temp_data == 0):
+                    if not self._is_valid(temp_data):
                         continue
                     temp = MyNode(parent=cur_node, i=child_i, j=child_j, level=child_level, data=temp_data)
             return 
@@ -92,7 +95,7 @@ class HorizontalRasterScan(AbstractScan):
             for child_i in range_i:
                 for child_j in range_j:
                     temp_data = self.data[f'level_{child_level}'][child_i, child_j]
-                    if torch.all(temp_data == 0):
+                    if not self._is_valid(temp_data):
                         continue
                     temp = MyNode(parent=cur_node, i=child_i, j=child_j, level=child_level, data=temp_data)
                     self._recursive_scan(temp)
@@ -131,7 +134,7 @@ class VerticalRasterScan(AbstractScan):
             for child_j in range_j:
                 for child_i in range_i:
                     temp_data = self.data[f'level_{child_level}'][child_i, child_j]
-                    if torch.all(temp_data == 0):
+                    if not self._is_valid(temp_data):
                         continue
                     temp = MyNode(parent=cur_node, i=child_i, j=child_j, level=child_level, data=temp_data)
             return 
@@ -142,7 +145,7 @@ class VerticalRasterScan(AbstractScan):
             for child_j in range_j:
                 for child_i in range_i:
                     temp_data = self.data[f'level_{child_level}'][child_i, child_j]
-                    if torch.all(temp_data == 0):
+                    if not self._is_valid(temp_data):
                         continue
                     temp = MyNode(parent=cur_node, i=child_i, j=child_j, level=child_level, data=temp_data)
                     self._recursive_scan(temp)
@@ -182,13 +185,13 @@ class HorizontalZigzagScan(AbstractScan):
                 if count_i % 2 == 0:
                     for child_j in range_j:
                         temp_data = self.data[f'level_{child_level}'][child_i, child_j]
-                        if torch.all(temp_data == 0):
+                        if not self._is_valid(temp_data):
                             continue
                         temp = MyNode(parent=cur_node, i=child_i, j=child_j, level=child_level, data=temp_data)
                 else:
                     for child_j in reversed(range_j):
                         temp_data = self.data[f'level_{child_level}'][child_i, child_j]
-                        if torch.all(temp_data == 0):
+                        if not self._is_valid(temp_data):
                             continue
                         temp = MyNode(parent=cur_node, i=child_i, j=child_j, level=child_level, data=temp_data)
             return
@@ -200,14 +203,14 @@ class HorizontalZigzagScan(AbstractScan):
                 if count_i % 2 == 0:
                     for child_j in range_j:
                         temp_data = self.data[f'level_{child_level}'][child_i, child_j]
-                        if torch.all(temp_data == 0):
+                        if not self._is_valid(temp_data):
                             continue
                         temp = MyNode(parent=cur_node, i=child_i, j=child_j, level=child_level, data=temp_data)
                         self._recursive_scan(temp)
                 else:
                     for child_j in reversed(range_j):
                         temp_data = self.data[f'level_{child_level}'][child_i, child_j]
-                        if torch.all(temp_data == 0):
+                        if not self._is_valid(temp_data):
                             continue
                         temp = MyNode(parent=cur_node, i=child_i, j=child_j, level=child_level, data=temp_data)
                         self._recursive_scan(temp)
@@ -247,13 +250,13 @@ class VerticalZigzagScan(AbstractScan):
                 if count_j % 2 == 0:
                     for child_i in range_i:
                         temp_data = self.data[f'level_{child_level}'][child_i, child_j]
-                        if torch.all(temp_data == 0):
+                        if not self._is_valid(temp_data):
                             continue
                         temp = MyNode(parent=cur_node, i=child_i, j=child_j, level=child_level, data=temp_data)
                 else:
                     for child_i in reversed(range_i):
                         temp_data = self.data[f'level_{child_level}'][child_i, child_j]
-                        if torch.all(temp_data == 0):
+                        if not self._is_valid(temp_data):
                             continue
                         temp = MyNode(parent=cur_node, i=child_i, j=child_j, level=child_level, data=temp_data)
             return
@@ -265,14 +268,14 @@ class VerticalZigzagScan(AbstractScan):
                 if count_j % 2 == 0:
                     for child_i in range_i:
                         temp_data = self.data[f'level_{child_level}'][child_i, child_j]
-                        if torch.all(temp_data == 0):
+                        if not self._is_valid(temp_data):
                             continue
                         temp = MyNode(parent=cur_node, i=child_i, j=child_j, level=child_level, data=temp_data)
                         self._recursive_scan(temp)
                 else:
                     for child_i in reversed(range_i):
                         temp_data = self.data[f'level_{child_level}'][child_i, child_j]
-                        if torch.all(temp_data == 0):
+                        if not self._is_valid(temp_data):
                             continue
                         temp = MyNode(parent=cur_node, i=child_i, j=child_j, level=child_level, data=temp_data)
                         self._recursive_scan(temp)
@@ -285,7 +288,6 @@ class AbstractReadout(object):
     
     def _readout_func(self, x):
         raise NotImplementedError("Subclasses should implement this!")
-    
     
     def __call__(self, x):
         return self._readout_func(x)
