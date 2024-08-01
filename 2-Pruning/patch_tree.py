@@ -1,4 +1,5 @@
 import os
+import cv2
 import copy
 import h5py
 import openslide
@@ -46,6 +47,7 @@ class PatchTree:
             self.num_levels = f.attrs['num_levels']
             self.patch_size = f.attrs['patch_size']
             self.downsample_factor = f.attrs['downsample_factor']
+            self.base_downsample = f.attrs['base_downsample']
             self.base_level = f.attrs['base_level']
             for i in range(self.num_levels):
                 self.shapes[f'level_{i}'] = f[f'level_{i}'].shape
@@ -143,6 +145,55 @@ class PatchTree:
                 continue
             self.coord2write[f'level_{node.level}'][node.i, node.j] = node.data
         self.save_hdf5(self.save_path, self.coord2write, self.attributes, mode='w')
+    
+    def visualize(self, orgin_coord, vis_path):
+        visualize_width = 1024
+        palette = [(173, 216, 230, 255), (255, 182, 193, 255), (152, 251, 152, 255), (230, 230, 250, 255),
+                        (255, 255, 0, 255), (255, 165, 0, 255), (255, 0, 255, 255), (64, 224, 208, 255),
+                        (168, 168, 120, 255), (210, 105, 30, 255), (255, 199, 0, 255), (138, 54, 15, 255)]
+        scale = self.wsi.level_downsamples[-1]
+        img = np.array(self.wsi.read_region((0, 0), len(self.wsi.level_dimensions) - 1, self.wsi.level_dimensions[-1]).convert('RGB'))
+
+        height, width, _ = img.shape
+        new_height = int(visualize_width * height / width)
+        resized_img = cv2.resize(img, (visualize_width, new_height), interpolation=cv2.INTER_CUBIC)
+        resized_height, resized_width, _ = resized_img.shape
+
+        stop_x = max([orgin_coord[f'level_{level}'][:, :, 0].max() for level in range(self.num_levels)])
+        stop_y = max([orgin_coord[f'level_{level}'][:, :, 1].max() for level in range(self.num_levels)])
+        scaled_stop_x = int(stop_x / scale / width * resized_width)
+        scaled_stop_y = int(stop_y / scale / height * resized_height)
+        
+        # draw the coords
+        for level in range(self.num_levels):
+            grid_x, grid_y = orgin_coord[f'level_{level}'][:, :, 0], orgin_coord[f'level_{level}'][:, :, 1]
+            scaled_grid_x = grid_x[:, 0] / scale / width * resized_width
+            scaled_grid_y = grid_y[0, :] / scale / height * resized_height
+
+            scaled_start_x = int(min(scaled_grid_x))
+            scaled_start_y = int(min(scaled_grid_y))
+
+            for x in set(scaled_grid_x):
+                cv2.line(resized_img, (int(x), scaled_start_y), (int(x), scaled_stop_y - 1), palette[level], 2 ** level)
+            
+            for y in set(scaled_grid_y):
+                cv2.line(resized_img, (scaled_start_x, int(y)), (scaled_stop_x - 1, int(y)), palette[level], 2 ** level)
+            
+            cv2.line(resized_img, (scaled_stop_x-1, scaled_start_y), (scaled_stop_x-1, scaled_stop_y-1), palette[level], 2 ** level)
+            cv2.line(resized_img, (scaled_start_x, scaled_stop_y-1), (scaled_stop_x-1, scaled_stop_y-1), palette[level], 2 ** level)
+        
+        # visulized the pruned regions as black
+        for level in range(self.num_levels):
+            for i in range(self.shapes[f'level_{level}'][0]):
+                for j in range(self.shapes[f'level_{level}'][1]):
+                    if all(self.coord2write[f'level_{level}'][i, j] == -1):
+                        x = orgin_coord[f'level_{level}'][i,j][0] / scale / width * resized_width
+                        y = orgin_coord[f'level_{level}'][i,j][1] / scale / height * resized_height
+                        level_patch_size = self.patch_size * self.base_downsample * (self.downsample_factor ** level)
+                        scaled_patch_size = level_patch_size / scale / width * resized_width
+                        cv2.rectangle(resized_img, (int(x), int(y)), (int(x + scaled_patch_size), int(y + scaled_patch_size)), (0, 0, 0), -1)
+
+        cv2.imwrite(vis_path, resized_img)
 
 
 class LevelPatchDataset(Dataset):

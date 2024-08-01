@@ -25,6 +25,7 @@ class Whole_Slide_Bag(Dataset):
                 self.patch_size = f.attrs['patch_size']
                 self.downsample_factor = f.attrs['downsample_factor']
                 self.base_level = f.attrs['base_level']
+                self.base_downsample = f.attrs['base_downsample']
                 self.coords = []
                 self.levels = []
                 self.locs = []

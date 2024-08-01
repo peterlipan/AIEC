@@ -15,6 +15,9 @@ class WholeSlideImage(object):
                  visualize_width=1024, skip=True, save_patch=False, style='DTFD'):
         self.src = src
         self.dst = dst
+        # patch size: the width/height of the patch at the base_level
+        # not at the level with highest resolutions (level 0)
+        # p_size (@base_level) = p_size (@level 0) * base_downsample
         self.patch_size = patch_size
         self.downsample_factor = downsample_factor
         self.num_levels = num_levels
