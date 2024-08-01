@@ -51,6 +51,7 @@ def main(gpu, args, wandb_logger):
         train_dataset,
         batch_size=args.batch_size,
         shuffle=(train_sampler is None),
+        collate_fn=train_dataset.collate_fn,
         drop_last=True,
         num_workers=0,
         sampler=train_sampler,
@@ -58,7 +59,7 @@ def main(gpu, args, wandb_logger):
     )
     if rank == 0:
         test_dataset = DTFDDataset(args.test_path, args.csv_path, training=False)
-        test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False,
+        test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, collate_fn=test_dataset.collate_fn,
         num_workers=0, pin_memory=True)
         print(f"Train: {len(train_dataset)}, Test: {len(test_dataset)}")
     else:

@@ -5,12 +5,14 @@ import time
 import pathlib
 import openslide
 import numpy as np
+from PIL import Image
+from skimage.filters import threshold_otsu
 
 
 class WholeSlideImage(object):
     def __init__(self, src, dst, patch_size=512, base_downsample=1, downsample_factor=4, num_levels=3,
                  use_otsu=True, sthresh=20, sthresh_up=255, mthresh=7, padding=True, visualize=True,
-                 visualize_width=1024, skip=True, save_patch=False):
+                 visualize_width=1024, skip=True, save_patch=False, style='DTFD'):
         self.src = src
         self.dst = dst
         self.patch_size = patch_size
@@ -37,6 +39,7 @@ class WholeSlideImage(object):
         self.visualize_width = visualize_width
         self.skip = skip
         self.save_patch = save_patch
+        self.style = style
         self.palette = [(173, 216, 230, 255), (255, 182, 193, 255), (152, 251, 152, 255), (230, 230, 250, 255),
                         (255, 255, 0, 255), (255, 165, 0, 255), (255, 0, 255, 255), (64, 224, 208, 255),
                         (168, 168, 120, 255), (210, 105, 30, 255), (255, 199, 0, 255), (138, 54, 15, 255)]
@@ -70,15 +73,18 @@ class WholeSlideImage(object):
             scaled_grid_x = grid_x[:, 0] / scale / width * resized_width
             scaled_grid_y = grid_y[0] / scale / height * resized_height
 
+            scaled_start_x = int(min(scaled_grid_x))
+            scaled_start_y = int(min(scaled_grid_y))
+
             for x in set(scaled_grid_x):
-                cv2.line(resized_img, (int(x), 0), (int(x), scaled_stop_y-1), self.palette[level], 1 * 2 ** level)
+                cv2.line(resized_img, (int(x), scaled_start_y), (int(x), scaled_stop_y-1), self.palette[level], 1 * 2 ** level)
 
             for y in set(scaled_grid_y):
-                cv2.line(resized_img, (0, int(y)), (scaled_stop_x-1, int(y)), self.palette[level], 1 * 2 ** level)
+                cv2.line(resized_img, (scaled_start_x, int(y)), (scaled_stop_x-1, int(y)), self.palette[level], 1 * 2 ** level)
 
             # draw the end line
-            cv2.line(resized_img, (scaled_stop_x-1, 0), (scaled_stop_x-1, scaled_stop_y-1), self.palette[level], 1 * 2 ** level)
-            cv2.line(resized_img, (0, scaled_stop_y-1), (scaled_stop_x-1, scaled_stop_y-1), self.palette[level], 1 * 2 ** level)
+            cv2.line(resized_img, (scaled_stop_x-1, scaled_start_y), (scaled_stop_x-1, scaled_stop_y-1), self.palette[level], 1 * 2 ** level)
+            cv2.line(resized_img, (scaled_start_x, scaled_stop_y-1), (scaled_stop_x-1, scaled_stop_y-1), self.palette[level], 1 * 2 ** level)
 
         cv2.imwrite(save_path, resized_img)
 
@@ -116,21 +122,50 @@ class WholeSlideImage(object):
         img = np.array(self.wsi.read_region((0, 0), self.base_level, self.base_dimensions))
         print(f'WSI loaded in {time.time() - start:.2f}s')
         img_hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
-        img_med = cv2.medianBlur(img_hsv[:, :, 1], self.mthresh)
 
-        # thresholding
-        if self.use_otsu:
-            print('Using Otsu thresholding')
-            _, img_otsu = cv2.threshold(img_med, self.sthresh, self.sthresh_up, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        # following CLAM
+        if self.style == 'CLAM':
+            img_med = cv2.medianBlur(img_hsv[:, :, 1], self.mthresh)
+
+            # thresholding
+            if self.use_otsu:
+                print('Using Otsu thresholding')
+                _, img_otsu = cv2.threshold(img_med, self.sthresh, self.sthresh_up, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+            else:
+                _, img_otsu = cv2.threshold(img_med, self.sthresh, self.sthresh_up, cv2.THRESH_BINARY)
+
+            # the minimum bounding box of the whole tissue
+            contours, _ = cv2.findContours(img_otsu, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            contours = np.concatenate(contours)
+            # scale the coord to level 0
+            scale = self.level_downsamples[self.base_level]
+            contours = (contours * scale).astype(np.int32)
+
+        elif self.style == 'DTFD':
+            # DTFD's way of preprocessing
+            h, s, v = cv2.split(img_hsv)
+
+            hthresh = threshold_otsu(h)
+            sthresh = threshold_otsu(s)
+            vthresh = threshold_otsu(v)
+
+            minhsv = np.array([hthresh, sthresh, 70], np.uint8)
+            maxhsv = np.array([180, 255, vthresh], np.uint8)
+            thresh = [minhsv, maxhsv]
+            mask = cv2.inRange(img_hsv, thresh[0], thresh[1])
+
+            close_kernel = np.ones((100, 100), dtype=np.uint8)
+            image_close_img = Image.fromarray(cv2.morphologyEx(np.array(mask), cv2.MORPH_CLOSE, close_kernel))
+            open_kernel = np.ones((60, 60), dtype=np.uint8)
+            image_open_np = cv2.morphologyEx(np.array(image_close_img), cv2.MORPH_OPEN, open_kernel)
+
+            contours, _ = cv2.findContours(image_open_np, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)   #_, contours, _ = cv2.findContours(image_open_np, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            contours = np.concatenate(contours)
+            scale = self.level_downsamples[self.base_level]
+            contours = (contours * scale).astype(np.int32)
+
         else:
-            _, img_otsu = cv2.threshold(img_med, self.sthresh, self.sthresh_up, cv2.THRESH_BINARY)
-
-        # the minimum bounding box of the whole tissue
-        contours, _ = cv2.findContours(img_otsu, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        contours = np.concatenate(contours)
-        # scale the coord to level 0
-        scale = self.level_downsamples[self.base_level]
-        contours = (contours * scale).astype(np.int32)
+            raise ValueError(f'Unknown style: {self.style}')
 
         x, y, w, h = cv2.boundingRect(contours)
 

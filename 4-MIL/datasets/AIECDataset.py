@@ -29,6 +29,14 @@ class AIECDataset(Dataset):
         features = torch.load(file_path)
         label = self.labels[idx]
         return features, label
+    
+    @staticmethod
+    def collate_fn(batch):
+        features, labels = zip(*batch)
+        # features: [batch_size, seq_len, n_views, n_features] for multiple views
+        features = pad_sequence(features, batch_first=True).float()
+        labels = torch.tensor(labels).long()
+        return features, labels
 
 
 class AIECPyramidDataset(Dataset):

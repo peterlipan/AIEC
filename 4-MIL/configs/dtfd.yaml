@@ -17,19 +17,19 @@ dataset: "CAMELYON16_DTFD"
 feature_dim: 1024
 
 # Model options
-backbone: "MambaMIL"
-dropout: 0.5
-activation: "gelu"
+backbone: "TransMIL"
+dropout: 0.3
+activation: "relu"
 num_layers: 2
 num_heads: 4
 d_model: 512
-d_state: 8
+d_state: 32
 agg: 'avg'
 pretrained: ""
 
 # training options
 seed: 42
-batch_size: 1
+batch_size: 2
 epochs: 200
 fold: 0
 
