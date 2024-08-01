@@ -8,7 +8,7 @@ from torch.nn.utils.rnn import pad_sequence
 
 
 class CAMELYON16Dataset(Dataset):
-    def __init__(self, data_root, csv_file, training=False, transforms=None):
+    def __init__(self, data_root, csv_file, training=False, transforms=None, use_pkl=True):
         super().__init__()
         self.training = training
         label2num = {'normal': 0, 'tumor': 1}
@@ -26,6 +26,7 @@ class CAMELYON16Dataset(Dataset):
         self.data_root = data_root
         self.paths = [os.path.join(data_root, item) for item in self.images]
         self.transforms = transforms
+        self.use_pkl = use_pkl
 
 
     def __len__(self):
@@ -33,7 +34,12 @@ class CAMELYON16Dataset(Dataset):
     
     def __getitem__(self, idx):
         wsi_name = self.images[idx]
-        features = torch.load(self.paths[idx])
+        if self.use_pkl:
+            with open(self.paths[idx], 'rb') as f:
+                features = pickle.load(f)
+            features = torch.from_numpy(features)
+        else:
+            features = torch.load(self.paths[idx])
         if self.transforms is not None:
             # if a list of transforms, implement MoE
             if isinstance(self.transforms, list):

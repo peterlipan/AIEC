@@ -40,7 +40,7 @@ class AIECDataset(Dataset):
 
 
 class AIECPyramidDataset(Dataset):
-    def __init__(self, data_root, csv_file, use_pkl=False, transforms=None):
+    def __init__(self, data_root, csv_file, use_pkl=True, transforms=None):
         super(AIECPyramidDataset, self).__init__()
         self.label2num = {'MMRd': 0, 'NSMP': 1, 'P53abn': 2, 'POLEmut': 3}
         self.num2label = {0: 'MMRd', 1: 'NSMP', 2: 'P53abn', 3: 'POLEmut'}
@@ -63,7 +63,7 @@ class AIECPyramidDataset(Dataset):
         if self.use_pkl:
             with open(file_path, 'rb') as f:
                 features = pickle.load(f)
-                features = torch.from_numpy(features)
+            features = torch.from_numpy(features)
         else:
             features = torch.load(file_path)
         if self.transforms is not None:
