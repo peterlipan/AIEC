@@ -75,38 +75,33 @@ class PatchTree:
         cur_j = cur_node.j
 
         # spatial information of the children
-        child_level = cur_level - 1
-        min_child_i = cur_i * self.downsample_factor
-        min_child_j = cur_j * self.downsample_factor
-        max_child_i = min((cur_i + 1) * self.downsample_factor, self.shapes[f'level_{child_level}'][0])
-        max_child_j = min((cur_j + 1) * self.downsample_factor, self.shapes[f'level_{child_level}'][1])
         # if current node is the pseudo root, include all the nodes in the next level as the children
+        child_level = cur_level - 1
         if cur_level == self.num_levels:
+            min_child_i = min_child_j = 0
             max_child_i = self.shapes[f'level_{child_level}'][0]
             max_child_j = self.shapes[f'level_{child_level}'][1]
+        else:  
+            factor = self.downsample_factor[child_level]
+            min_child_i = cur_i * factor
+            min_child_j = cur_j * factor
+            max_child_i = min((cur_i + 1) * factor, self.shapes[f'level_{child_level}'][0])
+            max_child_j = min((cur_j + 1) * factor, self.shapes[f'level_{child_level}'][1])
 
         range_i = list(range(min_child_i, max_child_i))
         range_j = list(range(min_child_j, max_child_j))
 
-        # if the img is the parent of leaves, dirrectly add the leaves as children and terminate recursion
-        if cur_level == self.lowest_level + 1:
-            for child_j in range_j:
-                for child_i in range_i:
-                    temp_data = self.tree_data[f'level_{child_level}'][child_i, child_j]
-                    if not self._patch_exists(temp_data):
-                        continue
-                    temp = MyNode(parent=cur_node, i=child_i, j=child_j, level=child_level, data=temp_data)
-            return 
 
-        # if the img is not the parent of leaves, recursively add the children
-        else:
-            for child_j in range_j:
-                for child_i in range_i:
-                    temp_data = self.tree_data[f'level_{child_level}'][child_i, child_j]
-                    if not self._patch_exists(temp_data):
-                        continue
-                    temp = MyNode(parent=cur_node, i=child_i, j=child_j, level=child_level, data=temp_data)
+        for child_j in range_j:
+            for child_i in range_i:
+                temp_data = self.tree_data[f'level_{child_level}'][child_i, child_j]
+                if not self._patch_exists(temp_data):
+                    continue
+                temp = MyNode(parent=cur_node, i=child_i, j=child_j, level=child_level, data=temp_data)
+                # if the child is not the leaf node, recursively add the children
+                if child_level > self.lowest_level:
                     self._recursive_scan(temp)
+        return 
 
     def _patch_exists(self, data):
         if data is None:
@@ -184,12 +179,13 @@ class PatchTree:
         
         # visulized the pruned regions as black
         for level in range(self.num_levels):
+            factor = factor * self.downsample_factor[level - 1] if level > 0 else 1
             for i in range(self.shapes[f'level_{level}'][0]):
                 for j in range(self.shapes[f'level_{level}'][1]):
                     if all(self.coord2write[f'level_{level}'][i, j] == -1):
                         x = orgin_coord[f'level_{level}'][i,j][0] / scale / width * resized_width
                         y = orgin_coord[f'level_{level}'][i,j][1] / scale / height * resized_height
-                        level_patch_size = self.patch_size * self.base_downsample * (self.downsample_factor ** level)
+                        level_patch_size = self.patch_size * self.base_downsample * factor
                         scaled_patch_size = level_patch_size / scale / width * resized_width
                         cv2.rectangle(resized_img, (int(x), int(y)), (int(x + scaled_patch_size), int(y + scaled_patch_size)), (0, 0, 0), -1)
 
@@ -204,7 +200,7 @@ class LevelPatchDataset(Dataset):
         self.patch_size = patch_size
         self.mode = mode
         self.node_list = [node for node in LevelOrderIter(tree.root) if node.level == level]
-        self.level_patch_size = patch_size * self.tree.downsample_factor ** level
+        self.level_patch_size = int(patch_size * np.prod(self.tree.downsample_factor[:level]))
     
     def __len__(self):
         return len(self.node_list)
