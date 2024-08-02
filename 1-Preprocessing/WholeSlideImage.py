@@ -6,13 +6,14 @@ import pathlib
 import openslide
 import numpy as np
 from PIL import Image
+from typing import Union
 from skimage.filters import threshold_otsu
 
 
 class WholeSlideImage(object):
-    def __init__(self, src, dst, patch_size=512, base_downsample=1, downsample_factor=4, num_levels=3,
-                 use_otsu=True, sthresh=20, sthresh_up=255, mthresh=7, padding=True, visualize=True,
-                 visualize_width=1024, skip=True, save_patch=False, style='DTFD'):
+    def __init__(self, src: str, dst: str, patch_size: str=512, base_downsample: int=1, downsample_factor: Union[str,int,list]=[2, 5], num_levels: int=3,
+                 use_otsu: bool=True, sthresh: int=20, sthresh_up: int=255, mthresh: int=7, padding: bool=True, visualize: bool=True,
+                 visualize_width: int=1024, skip: bool=True, save_patch: bool=False, style: str='DTFD'):
         self.src = src
         self.dst = dst
         # patch size: the width/height of the patch at the base_level
@@ -22,9 +23,13 @@ class WholeSlideImage(object):
         # To a list
         if isinstance(downsample_factor, int):
             self.downsample_factor = [downsample_factor] * (num_levels - 1) 
+        elif isinstance(downsample_factor, str):
+            self.downsample_factor = [int(i) for i in downsample_factor.split(',')]
         elif isinstance(downsample_factor, list):
-            assert len(downsample_factor) == num_levels - 1
             self.downsample_factor = downsample_factor
+        else:
+            raise ValueError(f'Unknown type of downsample_factor: {downsample_factor}')
+        assert len(self.downsample_factor) == num_levels - 1, "The length of downsample_factor should be num_levels - 1"
         self.num_levels = num_levels
         self.use_otsu = use_otsu
         self.sthresh = sthresh
@@ -85,14 +90,14 @@ class WholeSlideImage(object):
             scaled_start_y = int(min(scaled_grid_y))
 
             for x in set(scaled_grid_x):
-                cv2.line(resized_img, (int(x), scaled_start_y), (int(x), scaled_stop_y-1), self.palette[level], 1 * 2 ** level)
+                cv2.line(resized_img, (int(x), scaled_start_y), (int(x), scaled_stop_y-1), self.palette[level], 2 ** level)
 
             for y in set(scaled_grid_y):
-                cv2.line(resized_img, (scaled_start_x, int(y)), (scaled_stop_x-1, int(y)), self.palette[level], 1 * 2 ** level)
+                cv2.line(resized_img, (scaled_start_x, int(y)), (scaled_stop_x-1, int(y)), self.palette[level], 2 ** level)
 
             # draw the end line
-            cv2.line(resized_img, (scaled_stop_x-1, scaled_start_y), (scaled_stop_x-1, scaled_stop_y-1), self.palette[level], 1 * 2 ** level)
-            cv2.line(resized_img, (scaled_start_x, scaled_stop_y-1), (scaled_stop_x-1, scaled_stop_y-1), self.palette[level], 1 * 2 ** level)
+            cv2.line(resized_img, (scaled_stop_x-1, scaled_start_y), (scaled_stop_x-1, scaled_stop_y-1), self.palette[level], 2 ** level)
+            cv2.line(resized_img, (scaled_start_x, scaled_stop_y-1), (scaled_stop_x-1, scaled_stop_y-1), self.palette[level], 2 ** level)
 
         cv2.imwrite(save_path, resized_img)
 
@@ -193,7 +198,6 @@ class WholeSlideImage(object):
 
         # No need to check the holes. Directly generate the mesh
         asset_dict = {}
-        factor = 1
         for i in range(self.num_levels):
             factor = factor * self.downsample_factor[i - 1] if i > 0 else 1
             step_size = int(base_patch_size * factor)
@@ -211,7 +215,9 @@ class WholeSlideImage(object):
                 level_save_path = os.path.join(patch_path, f'level_{i}')
                 os.makedirs(level_save_path, exist_ok=True)
                 level_coords = asset_dict[f'level_{i}']
-                level_patch_size = int(self.patch_size * self.downsample_factor ** i)
+                factor = factor * self.downsample_factor[i - 1] if i > 0 else 1
+                level_patch_size = int(self.patch_size * factor)
+                
                 for m in range(level_coords.shape[0]):
                     for n in range(level_coords.shape[1]):
                         x, y = level_coords[m, n]
