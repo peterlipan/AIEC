@@ -49,11 +49,11 @@ def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Whole Slide Image Processing')
-    parser.add_argument('--src', type=str, default='/mnt/zhen_chen/CAMELYON16')
-    parser.add_argument('--dst', type=str, default='/mnt/zhen_chen/patches_CAMELYON16_DTFD')
+    parser.add_argument('--src', type=str, default='/mnt/zhen_chen/AIEC_tiff/MMRd')
+    parser.add_argument('--dst', type=str, default='/mnt/zhen_chen/patches_AIEC_DTFD_x40_down_2/MMRd')
     parser.add_argument('--patch_size', type=int, default=256)
-    parser.add_argument('--base_downsample', type=int, default=4)
-    parser.add_argument('--downsample_factor', type=int, default=4)
+    parser.add_argument('--base_downsample', type=int, default=1)
+    parser.add_argument('--downsample_factor', type=int, default=2)
     parser.add_argument('--num_levels', type=int, default=3)
     parser.add_argument('--no_use_otsu', action='store_true')
     parser.add_argument('--sthresh', type=int, default=20)

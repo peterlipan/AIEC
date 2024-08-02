@@ -53,7 +53,7 @@ def main(gpu, args, wandb_logger):
         train_csv = csv_file[csv_file['patient_id'].isin(train_patient_idx)]
         test_csv = csv_file[csv_file['patient_id'].isin(test_patient_idx)]
 
-        train_dataset = AIECPyramidDataset(args.data_root, train_csv, use_h5=False, transforms=train_transforms)
+        train_dataset = AIECPyramidDataset(args.data_root, train_csv, use_pkl=False, transforms=train_transforms)
         step_per_epoch = len(train_dataset) // (args.batch_size * args.world_size)
 
         # set sampler for parallel training
@@ -75,7 +75,7 @@ def main(gpu, args, wandb_logger):
             pin_memory=True,
         )
         if rank == 0:
-            test_dataset = AIECPyramidDataset(args.data_root, test_csv, use_h5=False, transforms=test_transforms)
+            test_dataset = AIECPyramidDataset(args.data_root, test_csv, use_pkl=False, transforms=test_transforms)
             test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, collate_fn=test_dataset.collate_fn,
             num_workers=args.workers, pin_memory=True)
         else:

@@ -19,7 +19,12 @@ class WholeSlideImage(object):
         # not at the level with highest resolutions (level 0)
         # p_size (@base_level) = p_size (@level 0) * base_downsample
         self.patch_size = patch_size
-        self.downsample_factor = downsample_factor
+        # To a list
+        if isinstance(downsample_factor, int):
+            self.downsample_factor = [downsample_factor] * (num_levels - 1) 
+        elif isinstance(downsample_factor, list):
+            assert len(downsample_factor) == num_levels - 1
+            self.downsample_factor = downsample_factor
         self.num_levels = num_levels
         self.use_otsu = use_otsu
         self.sthresh = sthresh
@@ -188,8 +193,10 @@ class WholeSlideImage(object):
 
         # No need to check the holes. Directly generate the mesh
         asset_dict = {}
+        factor = 1
         for i in range(self.num_levels):
-            step_size = int(base_patch_size * self.downsample_factor ** i)
+            factor = factor * self.downsample_factor[i - 1] if i > 0 else 1
+            step_size = int(base_patch_size * factor)
             x_range = np.arange(x, stop_x, step_size)
             y_range = np.arange(y, stop_y, step_size)
             x_coord, y_coord = np.meshgrid(x_range, y_range, indexing='ij')
