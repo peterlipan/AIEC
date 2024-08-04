@@ -45,14 +45,14 @@ class AbstractScan(object):
         if cur_level == self.num_levels:
             # if current node is the pseudo root, include all the nodes in the next level as the children
             min_child_i = min_child_j = 0
-            max_child_i = self.shapes[f'level_{child_level}'][0]
-            max_child_j = self.shapes[f'level_{child_level}'][1]
+            max_child_i = self.data[f'level_{child_level}'].shape[0]
+            max_child_j = self.data[f'level_{child_level}'].shape[1]
         else:  
             factor = self.downsample_factor[child_level]
             min_child_i = cur_i * factor
             min_child_j = cur_j * factor
-            max_child_i = min((cur_i + 1) * factor, self.shapes[f'level_{child_level}'][0])
-            max_child_j = min((cur_j + 1) * factor, self.shapes[f'level_{child_level}'][1])
+            max_child_i = min((cur_i + 1) * factor, self.data[f'level_{child_level}'].shape[0])
+            max_child_j = min((cur_j + 1) * factor, self.data[f'level_{child_level}'].shape[1])
         range_i = list(range(min_child_i, max_child_i))
         range_j = list(range(min_child_j, max_child_j))
         return range_i, range_j
