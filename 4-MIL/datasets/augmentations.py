@@ -48,7 +48,7 @@ class AbstractScan(object):
             max_child_i = self.data[f'level_{child_level}'].shape[0]
             max_child_j = self.data[f'level_{child_level}'].shape[1]
         else:  
-            factor = self.downsample_factor['child_level']
+            factor = self.downsample_factor[child_level]
             min_child_i = cur_i * factor
             min_child_j = cur_j * factor
             max_child_i = min((cur_i + 1) * factor, self.data[f'level_{child_level}'].shape[0])
