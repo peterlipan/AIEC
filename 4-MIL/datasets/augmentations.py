@@ -75,6 +75,7 @@ class HorizontalRasterScan(AbstractScan):
     def _recursive_scan(self, cur_node: MyNode):
         # spatial information of the current node
         cur_level = cur_node.level
+        child_level = cur_level - 1
         cur_i = cur_node.i
         cur_j = cur_node.j
 
@@ -104,6 +105,7 @@ class VerticalRasterScan(AbstractScan):
     def _recursive_scan(self, cur_node: MyNode):
         # spatial information of the current node
         cur_level = cur_node.level
+        child_level = cur_level - 1
         cur_i = cur_node.i
         cur_j = cur_node.j
 
@@ -133,6 +135,7 @@ class HorizontalZigzagScan(AbstractScan):
     def _recursive_scan(self, cur_node: MyNode):
         # spatial information of the current node
         cur_level = cur_node.level
+        child_level = cur_level - 1
         cur_i = cur_node.i
         cur_j = cur_node.j
     
@@ -174,6 +177,7 @@ class VerticalZigzagScan(AbstractScan):
     def _recursive_scan(self, cur_node: MyNode):
         # spatial information of the current node
         cur_level = cur_node.level
+        child_level = cur_level - 1
         cur_i = cur_node.i
         cur_j = cur_node.j
     
