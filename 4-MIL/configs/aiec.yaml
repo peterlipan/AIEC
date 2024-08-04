@@ -4,10 +4,10 @@ gpus: 4
 nr: 0
 dataparallel: 0
 workers: 8
-visible_gpus: "1,2,3,4"
+visible_gpus: "0,1,2,3"
 
 # Paths
-data_root: "/mnt/zhen_chen/features_AIEC_DTFD"
+data_root: "/mnt/zhen_chen/features_AIEC_DTFD_x40_down_2_5"
 csv_path: "./aiec_info.csv"
 checkpoints: "./checkpoints"
 
@@ -22,7 +22,7 @@ tree_dropout: [0, 0, 0]
 visible_levels: [0, 1, 2]
 
 # Model options
-backbone: "MambaAgents"
+backbone: "TransMIL"
 n_experts: 8
 dropout: 0.5
 activation: "gelu"
