@@ -8,7 +8,7 @@ from torch.nn.utils.rnn import pad_sequence
 
 
 class CAMELYON16Dataset(Dataset):
-    def __init__(self, data_root, csv_file, training=False, transforms=None, use_pkl=True):
+    def __init__(self, data_root, csv_file, training=False, transforms=None, use_pkl=False):
         super().__init__()
         self.training = training
         label2num = {'normal': 0, 'tumor': 1}

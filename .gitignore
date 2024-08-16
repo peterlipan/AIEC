@@ -21,6 +21,8 @@ results/
 **/checkpoints
 *.csv
 !reference.csv
+!aiec_train.csv
+!aiec_test.csv
 
 # weights
 *.pth

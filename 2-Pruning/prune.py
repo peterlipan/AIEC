@@ -130,20 +130,20 @@ def main(rank, csv, args):
 
 if __name__ == '__main__':
     args = argparse.ArgumentParser()
-    args.add_argument('--csv_path', type=str, default='/mnt/zhen_chen/patches_AIEC_DTFD_x40_down_2_5/MMRd/status.csv')
+    args.add_argument('--csv_path', type=str, default='/mnt/zhen_chen/patches_CAMELYON16_DTFD_x20_down_2_4/status.csv')
     # url: https://tiatoolbox.dcs.warwick.ac.uk/models/seg/fcn-tissue_mask.pth
     args.add_argument('--model_path', type=str, default='./fcn-tissue_mask.pth')
-    args.add_argument('--patch_root', type=str, default='/mnt/zhen_chen/patches_AIEC_DTFD_x40_down_2_5/MMRd')
-    args.add_argument('--wsi_root', type=str, default='/mnt/zhen_chen/AIEC_tiff/MMRd')
+    args.add_argument('--patch_root', type=str, default='/mnt/zhen_chen/patches_CAMELYON16_DTFD_x20_down_2_4')
+    args.add_argument('--wsi_root', type=str, default='/mnt/zhen_chen/CAMELYON16')
     # only to save the coordinates of remained patches after pruning
-    args.add_argument('--save_root', type=str, default='/mnt/zhen_chen/patches_AIEC_DTFD_x40_down_2_5_pruned/MMRd')
+    args.add_argument('--save_root', type=str, default='/mnt/zhen_chen/patches_CAMELYON16_DTFD_x20_down_2_4_pruned')
     args.add_argument('--save', action='store_true')
-    args.add_argument('--batch_size', type=int, default=1024)
+    args.add_argument('--batch_size', type=int, default=2048)
     args.add_argument('--patch_size', type=int, default=256)
     args.add_argument('--workers', type=int, default=0)
     args.add_argument('--threshold', type=float, default=0.1, help='Threshold of tissue area at the lowest level')
     args.add_argument('--mode', type=str, default='coordinate')
-    args.add_argument('--visible_gpu', type=str, default='2,3,4,5')
+    args.add_argument('--visible_gpu', type=str, default='0,1,2,3')
     args.add_argument('--port', type=str, default='12345')
     args = args.parse_args()
 

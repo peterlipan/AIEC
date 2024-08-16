@@ -8,7 +8,8 @@ visible_gpus: "0,1,2,3"
 
 # Paths
 data_root: "/mnt/zhen_chen/features_AIEC_DTFD_x40_down_2_5"
-csv_path: "./aiec_info.csv"
+train_csv: "./aiec_train.csv"
+test_csv: "./aiec_test.csv"
 checkpoints: "./checkpoints"
 
 # Dataset Options
@@ -18,11 +19,11 @@ KFold: 5
 num_levels: 3
 lowest_level: 0
 downsample_factor: [2, 5]
-tree_dropout: [0, 0, 0]
+tree_dropout: [0.01, 0.03, 0.05]
 visible_levels: [0, 1, 2]
 
 # Model options
-backbone: "TransMIL"
+backbone: "MambaAgents"
 n_experts: 8
 dropout: 0.5
 activation: "gelu"
@@ -35,7 +36,7 @@ pretrained: ""
 
 # training options
 seed: 42
-batch_size: 4
+batch_size: 2
 epochs: 200
 fold: 0
 

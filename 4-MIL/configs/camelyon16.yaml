@@ -7,7 +7,7 @@ workers: 8
 visible_gpus: "0,1,2,3"
 
 # Paths
-data_root: "/mnt/zhen_chen/features_CAMELYON16_DTFD/pt_files"
+data_root: "/mnt/zhen_chen/features_CAMELYON_DTFD_x20_down_2_4/pt_files"
 csv_path: "/mnt/zhen_chen/AIEC/4-MIL/reference.csv"
 checkpoints: "./checkpoints"
 
@@ -16,14 +16,14 @@ dataset: "CAMELYON16_DTFD"
 feature_dim: 1024
 num_levels: 3
 lowest_level: 0
-downsample_factor: 4
+downsample_factor: [2, 4]
 tree_dropout: [0, 0, 0]
-visible_levels: [0]
+visible_levels: [0, 1, 2]
 
 # Model options
-backbone: "TransMIL"
+backbone: "MambaMIL"
 n_experts: 8
-dropout: 0.3
+dropout: 0.5
 activation: "relu"
 num_layers: 2
 num_heads: 8
@@ -34,7 +34,7 @@ pretrained: ""
 
 # training options
 seed: 42
-batch_size: 2
+batch_size: 1
 epochs: 200
 fold: 0
 

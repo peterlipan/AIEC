@@ -91,19 +91,19 @@ def main(rank, csv, args):
             wsi_pt_features, wsi_pkl_features = extract_features(model, level_shapes, feature_dim, dataloader)
             
             torch.save(wsi_pt_features, save_pt_path)
-            with open(save_pkl_path, 'wb') as pkl_file:
-                pickle.dump(wsi_pkl_features, pkl_file)
+            # with open(save_pkl_path, 'wb') as pkl_file:
+            #     pickle.dump(wsi_pkl_features, pkl_file)
             print(f'{slide_name} processed and saved!!')
             
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--csv_path', type=str, default='/mnt/zhen_chen/patches_CAMELYON16/status.csv')
+    parser.add_argument('--csv_path', type=str, default='/mnt/zhen_chen/patches_CAMELYON16_DTFD_x20_down_2_4/status.csv')
     parser.add_argument('--wsi_dir', type=str, default='/mnt/zhen_chen/CAMELYON16')
-    parser.add_argument('--h5_dir', type=str, default='/mnt/zhen_chen/coordinates_CAMELYON16_pruned')
-    parser.add_argument('--save_dir', type=str, default='/mnt/zhen_chen/features_CAMELYON16_DTFD')
+    parser.add_argument('--h5_dir', type=str, default='/mnt/zhen_chen/patches_CAMELYON16_DTFD_x20_down_2_4_pruned/coordinates')
+    parser.add_argument('--save_dir', type=str, default='/mnt/zhen_chen/features_CAMELYON_DTFD_x20_down_2_4')
     parser.add_argument('--backbone', type=str, default='resnet50_dtfd')
     parser.add_argument('--patch_size', type=int, default=256)
-    parser.add_argument('--batch_size', type=int, default=1024)
+    parser.add_argument('--batch_size', type=int, default=2048)
     parser.add_argument('--num_workers', type=int, default=0)
     parser.add_argument('--no_skip', action='store_true')
     parser.add_argument('--visible_gpu', type=str, default='0,1,2,3')

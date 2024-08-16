@@ -40,13 +40,13 @@ class AIECDataset(Dataset):
 
 
 class AIECPyramidDataset(Dataset):
-    def __init__(self, data_root, csv_file, use_pkl=True, transforms=None):
+    def __init__(self, data_root, csv_file, use_pkl=False, transforms=None):
         super(AIECPyramidDataset, self).__init__()
         self.label2num = {'MMRd': 0, 'NSMP': 1, 'P53abn': 2, 'POLEmut': 3}
         self.num2label = {0: 'MMRd', 1: 'NSMP', 2: 'P53abn', 3: 'POLEmut'}
         self.num_classes = 4
         self.data_root = data_root
-        self.slide_idx = csv_file['slide_id'].values
+        self.slide_idx = csv_file['patient_id'].values
         self.diagnosis = csv_file['diagnosis'].values
         self.labels = csv_file['diagnosis'].map(self.label2num).values
         self.use_pkl = use_pkl
