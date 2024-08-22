@@ -23,6 +23,8 @@ results/
 !reference.csv
 !aiec_train.csv
 !aiec_test.csv
+!aiec_info.csv
+!tongji_slide_idx.csv
 
 # weights
 *.pth
