@@ -312,17 +312,10 @@ class TreeDropOut:
 
 def experts_train_transforms(n_experts, num_levels, downsample_factor, lowest_level, dropout, visible_levels):
     available_transforms = [
-        Compose([HorizontalRasterScan(num_levels, downsample_factor, lowest_level), TreeDropOut(num_levels, dropout), DepthFirstReadout(levels=visible_levels)]),
-        Compose([VerticalRasterScan(num_levels, downsample_factor, lowest_level), TreeDropOut(num_levels, dropout), DepthFirstReadout(levels=visible_levels)]),
-        Compose([HorizontalZigzagScan(num_levels, downsample_factor, lowest_level), TreeDropOut(num_levels, dropout), DepthFirstReadout(levels=visible_levels)]),
-        Compose([VerticalZigzagScan(num_levels, downsample_factor, lowest_level), TreeDropOut(num_levels, dropout), DepthFirstReadout(levels=visible_levels)]),
-        Compose([HorizontalRasterScan(num_levels, downsample_factor, lowest_level), TreeDropOut(num_levels, dropout), BreadthFirstReadout(levels=visible_levels)]),
-        Compose([VerticalRasterScan(num_levels, downsample_factor, lowest_level), TreeDropOut(num_levels, dropout), BreadthFirstReadout(levels=visible_levels)]),
-        Compose([HorizontalZigzagScan(num_levels, downsample_factor, lowest_level), TreeDropOut(num_levels, dropout), BreadthFirstReadout(levels=visible_levels)]),
-        Compose([VerticalZigzagScan(num_levels, downsample_factor, lowest_level), TreeDropOut(num_levels, dropout), BreadthFirstReadout(levels=visible_levels)]),
+        get_train_transforms(num_levels, downsample_factor, lowest_level, dropout, visible_levels) for _ in range(n_experts)
     ]
 
-    return available_transforms[:n_experts]
+    return available_transforms[:n_experts
 
 
 def experts_test_transforms(n_experts, num_levels, downsample_factor, lowest_level, visible_levels):
