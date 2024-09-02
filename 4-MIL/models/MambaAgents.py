@@ -10,7 +10,7 @@ from nystrom_attention import NystromAttention
 class MultiViewMamba(nn.Module):
     def __init__(self, d_model, d_state, n_views):
         super().__init__()
-        self.models = nn.ModuleList([nn.Sequential(nn.LayerNorm(d_model), Mamba(d_model=d_model, d_state=d_state, d_conv=4, expand=2)) for _ in range(n_views)])
+        self.models = nn.ModuleList([nn.Sequential(nn.LayerNorm(d_model), Mamba2(d_model=d_model, d_state=d_state, d_conv=4, expand=2)) for _ in range(n_views)])
     
     def forward(self, x):
         # x: [B, seq_len, n_views, d_model]

@@ -21,10 +21,9 @@ results/
 **/checkpoints
 *.csv
 !reference.csv
-!aiec_train.csv
-!aiec_test.csv
-!aiec_info.csv
-!tongji_slide_idx.csv
+!TongJi_Training_Samples.csv
+!TongJi_Testing_Samples.csv
+!TongJi_AIEC.csv
 
 # weights
 *.pth

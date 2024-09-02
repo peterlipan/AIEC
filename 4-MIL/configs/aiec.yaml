@@ -7,16 +7,14 @@ workers: 8
 visible_gpus: "0,1,2,3"
 
 # Paths
-data_root: "/mnt/zhen_chen/features_AIEC_DTFD_x40_down_2_5"
-train_csv: "./aiec_train.csv"
-test_csv: "./aiec_test.csv"
-csv_path: "./aiec_info.csv"
+data_root: "/mnt/zhen_chen/features_TongJi_x40_down_2_5"
+train_csv: "./TongJi_Training_Samples.csv"
+test_csv: "./TongJi_Testing_Samples.csv"
 checkpoints: "./checkpoints"
 
 # Dataset Options
 dataset: "AIEC"
 feature_dim: 1024
-KFold: 10
 num_levels: 3
 lowest_level: 0
 downsample_factor: [2, 5]
@@ -24,14 +22,14 @@ tree_dropout: [0, 0, 0]
 visible_levels: [0, 1, 2]
 
 # Model options
-backbone: "TransMIL"
+backbone: "MambaAgents"
 n_experts: 8
 dropout: 0.5
-activation: "gelu"
+activation: "relu"
 num_layers: 2
 num_heads: 8
 d_model: 512
-d_state: 8
+d_state: 32
 agg: 'avg'
 pretrained: ""
 
@@ -43,9 +41,9 @@ fold: 0
 
 # optimizer options
 opt: "adamw"
-lr: 2.0e-4
+lr: 2.0e-3
 scheduler: True
-weight_decay: 0.05
+weight_decay: 0.01
 warmup_epochs: 15
 lambda_xsam: 0
 lambda_xview: 0

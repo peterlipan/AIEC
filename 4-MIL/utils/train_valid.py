@@ -50,7 +50,7 @@ def train(dataloaders, model, criteria, optimizer, scheduler, args, logger):
             if args.rank == 0:
                 if cur_iter % 50 == 1:
                     cur_lr = optimizer.param_groups[0]['lr']
-                    test_acc, test_f1, test_auc, test_ap, test_bac, test_sens, test_spec, test_prec, test_mcc, test_kappa = validate(
+                    test_acc, test_f1, test_auc, test_ap, test_bac, test_sens, test_spec, test_prec, test_mcc, test_kappa = validate(epoch,
                         test_loader, model)
                     if logger is not None:
                         logger.log({'test': {'Accuracy': test_acc,
@@ -72,7 +72,7 @@ def train(dataloaders, model, criteria, optimizer, scheduler, args, logger):
 
     # validate and save the model
     if args.rank == 0:
-        test_acc, test_f1, test_auc, test_ap, test_bac, test_sens, test_spec, test_prec, test_mcc, test_kappa = validate(
+        test_acc, test_f1, test_auc, test_ap, test_bac, test_sens, test_spec, test_prec, test_mcc, test_kappa = validate(epoch,
             test_loader, model)
         if logger is not None:
             logger.log({'test': {'Accuracy': test_acc,
@@ -95,23 +95,28 @@ def train(dataloaders, model, criteria, optimizer, scheduler, args, logger):
         torch.save(state_dict, model_path)
 
 
-def validate(dataloader, model):
+def validate(epoch, dataloader, model):
     training = model.training
     model.eval()
 
     ground_truth = torch.Tensor().cuda()
     predictions = torch.Tensor().cuda()
+    wsi_names = []
 
     with torch.no_grad():
-        for _, img, label in dataloader:
+        for name, img, label in dataloader:
             img, label = img.cuda(non_blocking=True), label.cuda(non_blocking=True).long()
             outputs = model(img)
             logits = outputs.logits
             pred = F.softmax(logits, dim=1)
             ground_truth = torch.cat((ground_truth, label))
-            predictions = torch.cat((predictions, pred))        
+            predictions = torch.cat((predictions, pred))    
+            wsi_names.extend(name)    
 
         acc, f1, auc, ap, bac, sens, spec, prec, mcc, kappa = compute_avg_metrics(ground_truth, predictions, avg='macro')
+        preds = predictions.argmax(dim=1).cpu().detach().tolist()
+        ground_truth = ground_truth.cpu().detach().tolist()
+        write_csv(epoch, wsi_names, preds, ground_truth)
     model.train(training)
     return acc, f1, auc, ap, bac, sens, spec, prec, mcc, kappa
 
