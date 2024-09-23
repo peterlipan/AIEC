@@ -7,9 +7,10 @@ workers: 8
 visible_gpus: "0,1,2,3"
 
 # Paths
-data_root: "/mnt/zhen_chen/features_TongJi_x40_down_2_5"
-train_csv: "./TongJi_Training_Samples.csv"
-test_csv: "./TongJi_Testing_Samples.csv"
+data_root: "/mnt/zhen_chen/features_TongJi_DTFD_x20_down_2_4"
+csv_path: "./TongJi_AIEC.csv"
+# train_csv: "./TongJi_Training_Samples.csv"
+# test_csv: "./TongJi_Testing_Samples.csv"
 checkpoints: "./checkpoints"
 
 # Dataset Options
@@ -17,8 +18,8 @@ dataset: "AIEC"
 feature_dim: 1024
 num_levels: 3
 lowest_level: 0
-downsample_factor: [2, 5]
-tree_dropout: [0, 0, 0]
+downsample_factor: [2, 4]
+tree_dropout: [0.1, 0.08, 0.05]
 visible_levels: [0, 1, 2]
 
 # Model options
@@ -30,18 +31,19 @@ num_layers: 2
 num_heads: 8
 d_model: 512
 d_state: 32
+KFold: 10
 agg: 'avg'
 pretrained: ""
 
 # training options
-seed: 42
-batch_size: 1
+seed: 0
+batch_size: 2
 epochs: 200
 fold: 0
 
 # optimizer options
 opt: "adamw"
-lr: 2.0e-3
+lr: 2.0e-4
 scheduler: True
 weight_decay: 0.01
 warmup_epochs: 15

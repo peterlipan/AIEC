@@ -138,7 +138,7 @@ if __name__ == '__main__':
     # only to save the coordinates of remained patches after pruning
     args.add_argument('--save_root', type=str, default='/mnt/zhen_chen/patches_CAMELYON16_DTFD_x20_down_2_4_pruned')
     args.add_argument('--save', action='store_true')
-    args.add_argument('--batch_size', type=int, default=2048)
+    args.add_argument('--batch_size', type=int, default=1024)
     args.add_argument('--patch_size', type=int, default=256)
     args.add_argument('--workers', type=int, default=0)
     args.add_argument('--threshold', type=float, default=0.1, help='Threshold of tissue area at the lowest level')

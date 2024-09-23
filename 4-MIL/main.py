@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 from models import create_model
 import torch.distributed as dist
+import torch.backends.cudnn as cudnn
 import torch.multiprocessing as mp
 import torch.nn as nn
 from torch.nn.parallel import DataParallel
@@ -41,62 +42,70 @@ def main(gpu, args, wandb_logger):
         test_transforms = get_test_transforms(num_levels=args.num_levels, downsample_factor=args.downsample_factor, lowest_level=args.lowest_level, visible_levels=args.visible_levels)
 
         
-    train_csv = pd.read_csv(args.train_csv)
-    test_csv = pd.read_csv(args.test_csv)
+    csv_file = pd.read_csv(args.csv_path)
+    kf = KFold(n_splits=args.KFold, shuffle=True, random_state=args.seed)
+    # split the dataset based on patients
+    for i, (train_id, test_id) in enumerate(kf.split(csv_file)):
+        # run only on one fold
+        if args.fold is not None and i != args.fold:
+            continue
 
-    train_dataset = AIECPyramidDataset(args.data_root, train_csv, use_pkl=False, transforms=train_transforms)
-    step_per_epoch = len(train_dataset) // (args.batch_size * args.world_size)
+        train_csv = csv_file.iloc[train_id]
+        test_csv = csv_file.iloc[test_id]
 
-    # set sampler for parallel training
-    if args.world_size > 1 and not args.dataparallel:
-        train_sampler = torch.utils.data.distributed.DistributedSampler(
-            train_dataset, num_replicas=args.world_size, rank=rank, shuffle=True
+        train_dataset = AIECPyramidDataset(args.data_root, train_csv, use_pkl=False, transforms=train_transforms)
+        step_per_epoch = len(train_dataset) // (args.batch_size * args.world_size)
+
+        # set sampler for parallel training
+        if args.world_size > 1 and not args.dataparallel:
+            train_sampler = torch.utils.data.distributed.DistributedSampler(
+                train_dataset, num_replicas=args.world_size, rank=rank, shuffle=True
+            )
+        else:
+            train_sampler = None
+
+        train_loader = DataLoader(
+            train_dataset,
+            batch_size=args.batch_size,
+            shuffle=(train_sampler is None),
+            drop_last=True,
+            collate_fn=train_dataset.collate_fn,
+            num_workers=args.workers,
+            sampler=train_sampler,
+            pin_memory=True,
         )
-    else:
-        train_sampler = None
+        if rank == 0:
+            test_dataset = AIECPyramidDataset(args.data_root, test_csv, use_pkl=False, transforms=test_transforms)
+            test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, collate_fn=test_dataset.collate_fn,
+            num_workers=args.workers, pin_memory=True)
+        else:
+            test_loader = None
 
-    train_loader = DataLoader(
-        train_dataset,
-        batch_size=args.batch_size,
-        shuffle=(train_sampler is None),
-        drop_last=True,
-        collate_fn=train_dataset.collate_fn,
-        num_workers=args.workers,
-        sampler=train_sampler,
-        pin_memory=True,
-    )
-    if rank == 0:
-        test_dataset = AIECPyramidDataset(args.data_root, test_csv, use_pkl=False, transforms=test_transforms)
-        test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, collate_fn=test_dataset.collate_fn,
-        num_workers=args.workers, pin_memory=True)
-    else:
-        test_loader = None
+        loaders = (train_loader, test_loader)
+        args.num_classes = train_dataset.num_classes
 
-    loaders = (train_loader, test_loader)
-    args.num_classes = train_dataset.num_classes
+        model = create_model(args)
+        model = model.cuda()
 
-    model = create_model(args)
-    model = model.cuda()
+        optimizer = get_optim(model, args)
+        criteria = nn.CrossEntropyLoss().cuda()
+        if args.scheduler:
+            scheduler = get_cosine_schedule_with_warmup(optimizer, args.warmup_epochs * step_per_epoch, args.epochs * step_per_epoch)
+        else:
+            scheduler = None
+            
+        if args.dataparallel:
+            model = convert_model(model)
+            model = DataParallel(model, device_ids=[int(x) for x in args.visible_gpus.split(",")])
 
-    optimizer = get_optim(model, args)
-    criteria = nn.CrossEntropyLoss().cuda()
-    if args.scheduler:
-        scheduler = get_cosine_schedule_with_warmup(optimizer, args.warmup_epochs * step_per_epoch, args.epochs * step_per_epoch)
-    else:
-        scheduler = None
-        
-    if args.dataparallel:
-        model = convert_model(model)
-        model = DataParallel(model, device_ids=[int(x) for x in args.visible_gpus.split(",")])
-
-    else:
-        if args.world_size > 1:
-            model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
-            model = DDP(model, device_ids=[gpu])
-    if 'expert' in args.backbone.lower():
-        train_experts(loaders, model, criteria, optimizer, scheduler, args, wandb_logger)
-    else:
-        train(loaders, model, criteria, optimizer, scheduler, args, wandb_logger)
+        else:
+            if args.world_size > 1:
+                model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
+                model = DDP(model, device_ids=[gpu])
+        if 'expert' in args.backbone.lower():
+            train_experts(loaders, model, criteria, optimizer, scheduler, args, wandb_logger)
+        else:
+            train(loaders, model, criteria, optimizer, scheduler, args, wandb_logger)
 
 
 if __name__ == '__main__':
@@ -123,10 +132,7 @@ if __name__ == '__main__':
     # init wandb
     if not args.debug:
         wandb.login(key="cb1e7d54d21d9080b46d2b1ae2a13d895770aa29")
-        config = dict()
-
-        for k, v in yaml_config.items():
-            config[k] = v
+        config = vars(args)
 
         wandb_logger = wandb.init(
             project="AIEC",

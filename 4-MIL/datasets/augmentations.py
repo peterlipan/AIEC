@@ -315,7 +315,7 @@ def experts_train_transforms(n_experts, num_levels, downsample_factor, lowest_le
         get_train_transforms(num_levels, downsample_factor, lowest_level, dropout, visible_levels) for _ in range(n_experts)
     ]
 
-    return available_transforms[:n_experts
+    return available_transforms
 
 
 def experts_test_transforms(n_experts, num_levels, downsample_factor, lowest_level, visible_levels):

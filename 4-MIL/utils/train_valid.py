@@ -116,7 +116,7 @@ def validate(epoch, dataloader, model):
         acc, f1, auc, ap, bac, sens, spec, prec, mcc, kappa = compute_avg_metrics(ground_truth, predictions, avg='macro')
         preds = predictions.argmax(dim=1).cpu().detach().tolist()
         ground_truth = ground_truth.cpu().detach().tolist()
-        write_csv(epoch, wsi_names, preds, ground_truth)
+        # write_csv(epoch, wsi_names, preds, ground_truth)
     model.train(training)
     return acc, f1, auc, ap, bac, sens, spec, prec, mcc, kappa
 
@@ -268,7 +268,7 @@ def valid_experts(epoch, dataloader, model):
 
         moe_preds = moe_probs.argmax(dim=-1).cpu().detach().tolist()
         ground_truth = ground_truth.cpu().detach().tolist()
-        write_csv(epoch, wsi_names, moe_preds, ground_truth)
+        # write_csv(epoch, wsi_names, moe_preds, ground_truth)
 
 
     model.train(training)

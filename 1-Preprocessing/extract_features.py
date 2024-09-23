@@ -88,7 +88,11 @@ def main(rank, csv, args):
             slide_dataset = Whole_Slide_Bag(slide_path, coord_path, patch_path, img_transforms=transforms, mode=args.mode)
             dataloader = DataLoader(slide_dataset, batch_size=args.batch_size, num_workers=args.num_workers, shuffle=False, pin_memory=True)
             level_shapes = slide_dataset.shapes
-            wsi_pt_features, wsi_pkl_features = extract_features(model, level_shapes, feature_dim, dataloader)
+            try:
+                wsi_pt_features, wsi_pkl_features = extract_features(model, level_shapes, feature_dim, dataloader)
+            except Exception as e:
+                print(f'Error processing {slide_name}: {e}')
+                continue
             
             torch.save(wsi_pt_features, save_pt_path)
             # with open(save_pkl_path, 'wb') as pkl_file:
