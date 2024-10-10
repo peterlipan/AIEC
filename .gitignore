@@ -21,8 +21,6 @@ results/
 **/checkpoints
 *.csv
 !reference.csv
-!TongJi_Training_Samples.csv
-!TongJi_Testing_Samples.csv
 !TongJi_AIEC.csv
 
 # weights

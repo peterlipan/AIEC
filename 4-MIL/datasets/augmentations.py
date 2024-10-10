@@ -214,36 +214,37 @@ class VerticalZigzagScan(AbstractScan):
 
 
 class AbstractReadout(object):
-    def __init__(self, p=1, levels=None):
+    def __init__(self, p=1, levels=None, random_layer=0.):
         self.p = p
         self.levels = levels
+        self.random_layer = random_layer
     
-    def _readout_func(self, x):
+    def _readout_func(self, root):
         raise NotImplementedError("Subclasses should implement this!")
     
-    def __call__(self, x):
-        return self._readout_func(x)
+    def __call__(self, root):
+        if random.random() < self.random_layer:
+            num_level = random.randint(1, len(self.levels) - 1)
+            self.levels = random.sample(self.levels, num_level) + [len(self.levels) - 1]
+        return self._readout_func(root)
 
 
 class DepthFirstReadout(AbstractReadout):
     
-    def _readout_func(self, x):
-        # drop the pseudo root node
-        return torch.stack([x.data for x in PreOrderIter(x) if x.level in self.levels])
+    def _readout_func(self, root):
+        return torch.stack([node.data for node in PreOrderIter(root) if node.level in self.levels])
 
 
 class BreadthFirstReadout(AbstractReadout):
     
-    def _readout_func(self, x):
-        # drop the pseudo root node
-        return torch.stack([x.data for x in LevelOrderIter(x) if x.level in self.levels])
+    def _readout_func(self, root):
+        return torch.stack([node.data for node in LevelOrderIter(root) if node.level in self.levels])
 
 
 class UpwardsReadout(AbstractReadout):
     
-    def _readout_func(self, x):
-        # drop the pseudo root node
-        return torch.stack([x.data for x in PostOrderIter(x) if x.level in self.levels])
+    def _readout_func(self, root):
+        return torch.stack([node.data for node in PostOrderIter(root) if node.level in self.levels])
                 
 
 class OneOf(object):
@@ -281,9 +282,9 @@ def get_train_transforms(num_levels, downsample_factor, lowest_level, dropout, v
         ]),
         TreeDropOut(num_levels, dropout),
         OneOf([
-            DepthFirstReadout(levels=visible_levels),
-            BreadthFirstReadout(levels=visible_levels),
-            UpwardsReadout(levels=visible_levels)
+            DepthFirstReadout(levels=visible_levels, random_layer=0.5),
+            BreadthFirstReadout(levels=visible_levels, random_layer=0.5),
+            UpwardsReadout(levels=visible_levels, random_layer=0.5)
         ])
     ])
 
@@ -291,7 +292,7 @@ def get_train_transforms(num_levels, downsample_factor, lowest_level, dropout, v
 def get_test_transforms(num_levels, downsample_factor, lowest_level, visible_levels):
     return Compose([
         HorizontalRasterScan(num_levels, downsample_factor, lowest_level, p_i=0, p_j=0),
-        DepthFirstReadout(levels=visible_levels)
+        DepthFirstReadout(levels=visible_levels, random_layer=0.)
     ])
 
 
@@ -310,12 +311,61 @@ class TreeDropOut:
         return root
 
 
-def experts_train_transforms(n_experts, num_levels, downsample_factor, lowest_level, dropout, visible_levels):
-    available_transforms = [
-        get_train_transforms(num_levels, downsample_factor, lowest_level, dropout, visible_levels) for _ in range(n_experts)
+class TreeShuffle:
+    def __init__(self, num_levels: int, num_classes: int, cache_size: int):
+        self.num_levels = num_levels
+        self.num_classes = num_classes
+        self.cache_size = cache_size
+
+        self.class_cache = [[[] for _ in range(num_levels)] for _ in range(num_classes)]
+    
+    def __call__(self, root, label):
+        for i in range(self.num_levels):
+            nodes = [node for node in LevelOrderIter(root) if node.level == i]
+            if len(self.class_cache[label][i]) < self.cache_size:
+                self.class_cache[label][i].append(random.sample(nodes, self.cache_size))
+            else:
+                temp = random.sample(nodes, self.cache_size)
+                
+        return root
+
+
+
+def experts_train_transforms(n_experts, num_levels, downsample_factor, lowest_level, dropout, visible_levels, fix_agent=False, random_layer=1.0):
+
+    random_transforms = [get_train_transforms(num_levels, downsample_factor, lowest_level, dropout, visible_levels) for _ in range(n_experts)]
+
+    fixed_transforms = [
+        Compose([HorizontalRasterScan(num_levels, downsample_factor, lowest_level),
+                 TreeDropOut(num_levels, dropout),
+                 DepthFirstReadout(levels=visible_levels, random_layer=random_layer)]),
+        Compose([VerticalRasterScan(num_levels, downsample_factor, lowest_level),
+                TreeDropOut(num_levels, dropout),
+                DepthFirstReadout(levels=visible_levels, random_layer=random_layer)]),
+        Compose([HorizontalZigzagScan(num_levels, downsample_factor, lowest_level),
+                TreeDropOut(num_levels, dropout),
+                DepthFirstReadout(levels=visible_levels, random_layer=random_layer)]),
+        Compose([VerticalZigzagScan(num_levels, downsample_factor, lowest_level),
+                TreeDropOut(num_levels, dropout),
+                DepthFirstReadout(levels=visible_levels, random_layer=random_layer)]),
+        Compose([HorizontalRasterScan(num_levels, downsample_factor, lowest_level),
+                TreeDropOut(num_levels, dropout),
+                BreadthFirstReadout(levels=visible_levels, random_layer=random_layer)]),
+        Compose([VerticalRasterScan(num_levels, downsample_factor, lowest_level),
+                TreeDropOut(num_levels, dropout),
+                BreadthFirstReadout(levels=visible_levels, random_layer=random_layer)]),
+        Compose([HorizontalZigzagScan(num_levels, downsample_factor, lowest_level),
+                TreeDropOut(num_levels, dropout),
+                BreadthFirstReadout(levels=visible_levels, random_layer=random_layer)]),
+        Compose([VerticalZigzagScan(num_levels, downsample_factor, lowest_level),
+                TreeDropOut(num_levels, dropout),
+                BreadthFirstReadout(levels=visible_levels, random_layer=random_layer)]),
     ]
 
-    return available_transforms
+    if fix_agent:
+        return fixed_transforms[:n_experts]
+    else:
+        return random_transforms
 
 
 def experts_test_transforms(n_experts, num_levels, downsample_factor, lowest_level, visible_levels):
@@ -345,7 +395,7 @@ if __name__ == '__main__':
         print(f'level_{i} ', f'shape: {shapes[i]}')
     data['overview'] = torch.randn((1,1))
     
-    scan = HorizontalRasterScan(num_levels=3, downsample_factor=3, lowest_level=0, p_i=0.5, p_j=0.5)
+    scan = HorizontalRasterScan(num_levels=3, downsample_factor=[3, 3], lowest_level=0, p_i=0.5, p_j=0.5)
     drop = TreeDropOut(3, [0.1, 0.2, 0.3])
     readout = BreadthFirstReadout()
     root = scan(data)
