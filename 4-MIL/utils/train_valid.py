@@ -20,21 +20,31 @@ def train(dataloaders, model, criteria, optimizer, scheduler, args, logger):
     train_loader, test_loader = dataloaders
     model.train()
     start = time.time()
-
+    xview_criteria = CrossViewConsistency(batch_size=args.batch_size, world_size=args.world_size)
     cur_iter = 0
+
     for epoch in range(args.epochs):
         if isinstance(train_loader.sampler, DistributedSampler):
             train_loader.sampler.set_epoch(epoch)
-        for i, (_, img, label) in enumerate(train_loader):
-            img, label = img.cuda(non_blocking=True), label.cuda(non_blocking=True)
+        for i, (_, img, labels) in enumerate(train_loader):
+            img, labels = img.cuda(non_blocking=True), labels.cuda(non_blocking=True)
             outputs = model(img)
-            logits = outputs.logits
+            logits, agent_features = outputs.logits, outputs.agent_features            
 
             # classification loss
-            loss = criteria(logits, label)
+            cls_loss = criteria(logits, labels)
+
+            if agent_features is not None:
+                xview_loss = args.lambda_xview * xview_criteria(agent_features, labels)
+                loss = cls_loss + xview_loss
+            
+            else:
+                loss = cls_loss
 
             if args.rank == 0:
                 train_loss = loss.item()
+                cls_loss_value = cls_loss.item()
+                xview_loss_value = xview_loss.item() if agent_features is not None else 0
                 
             optimizer.zero_grad()
             loss.backward()
@@ -45,10 +55,10 @@ def train(dataloaders, model, criteria, optimizer, scheduler, args, logger):
             if dist.is_available() and dist.is_initialized():
                 loss = loss.data.clone()
                 dist.all_reduce(loss.div_(dist.get_world_size()))
-
+            
             cur_iter += 1
             if args.rank == 0:
-                if cur_iter % 50 == 1:
+                if cur_iter % 50 == 0:
                     cur_lr = optimizer.param_groups[0]['lr']
                     test_acc, test_f1, test_auc, test_ap, test_bac, test_sens, test_spec, test_prec, test_mcc, test_kappa = validate(epoch,
                         test_loader, model)
@@ -64,6 +74,8 @@ def train(dataloaders, model, criteria, optimizer, scheduler, args, logger):
                                              'MCC': test_mcc,
                                              'Kappa': test_kappa},
                                     'train': {'loss': train_loss,
+                                                'cls_loss': cls_loss_value,
+                                                'xview_loss': xview_loss_value,
                                               'learning_rate': cur_lr}}, )
 
                     print('\rEpoch: [%2d/%2d] Iter [%4d/%4d] || Time: %4.4f sec || lr: %.6f || Loss: %.4f' % (
@@ -126,9 +138,7 @@ def train_experts(dataloaders, model, criteria, optimizer, scheduler, args, logg
     model.train()
     start = time.time()
 
-    xsample = CrossSampleConsistency(batch_size=args.batch_size, world_size=args.world_size)
-    xview_KL = CrossViewConsistency(div='KL')
-    xview_L2 = CrossViewConsistency(div='L2')
+    xview = CrossViewConsistency(batch_size=args.batch_size, world_size=args.world_size)
 
     cur_iter = 0
     for epoch in range(args.epochs):
@@ -141,31 +151,16 @@ def train_experts(dataloaders, model, criteria, optimizer, scheduler, args, logg
                 img = img.cuda(non_blocking=True)
             label = label.cuda(non_blocking=True)
             outputs = model(img)
-            features, logits, moe_features, moe_logits = outputs.features, outputs.logits, outputs.moe_features, outputs.moe_logits
+            features, logits, agent_features = outputs.features, outputs.logits, outputs.agent_features
 
             # classification loss
             cls_loss = criteria(logits.view(args.n_experts * args.batch_size, -1), label.repeat(args.n_experts))
-            loss  = cls_loss
-            train_overall_cls_loss = 0
-            train_logits_loss = 0
-            train_feature_loss = 0
-            # print(xsam_feature_loss.item(), xsam_logits_loss.item(), xview_feature_loss.item(), xview_logits_loss.item(), cls_loss.item(), overall_cls_loss.item())
-            if epoch > args.warmup_epochs:
-                overall_cls_loss = criteria(moe_logits, label)
-                train_overall_cls_loss = overall_cls_loss.item() * args.lambda_cls
-                loss = overall_cls_loss + cls_loss
-                if args.lambda_xview:
-                    xview_logits_loss = xview_KL(logits, moe_logits)
-                    train_logits_loss = xview_logits_loss.item() * args.lambda_xview
-                    loss += args.lambda_xview * xview_logits_loss
-                
-                if args.lambda_xsam:
-                    xsam_feature_loss = xsample(features, label)
-                    train_feature_loss = xsam_feature_loss.item() * args.lambda_xsam
-                    loss += args.lambda_xsam * xsam_feature_loss
+            xview_loss = xview(agent_features, label)
+            loss  = cls_loss + args.lambda_xview * xview_loss
 
             if args.rank == 0:
                 train_loss = loss.item()
+                xview_value = xview_loss.item()
                 
             optimizer.zero_grad()
             loss.backward()
@@ -185,10 +180,7 @@ def train_experts(dataloaders, model, criteria, optimizer, scheduler, args, logg
                     if logger is not None:
                         logger.log({'test': test_performance,
                                     'train': {'loss': train_loss,
-                                              'xview_logits_loss': train_logits_loss,
-                                              'xsam_feature_loss': train_feature_loss,
-                                              'expert_cls_loss': cls_loss.item(),
-                                              'overall_cls_loss': train_overall_cls_loss,
+                                              'xview_loss': xview_value,
                                               'learning_rate': cur_lr}}, )
 
                     print('\rEpoch: [%2d/%2d] Iter [%4d/%4d] || Time: %4.4f sec || lr: %.6f || Loss: %.4f' % (

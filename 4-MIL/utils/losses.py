@@ -5,6 +5,7 @@ from .gather import GatherLayer
 import torch
 import torch.nn as nn
 
+
 class SupConLoss(nn.Module):
     """Supervised Contrastive Learning: https://arxiv.org/pdf/2004.11362.pdf.
     It also supports the unsupervised contrastive loss in SimCLR"""
@@ -28,9 +29,7 @@ class SupConLoss(nn.Module):
         Returns:
             A loss scalar.
         """
-        device = (torch.device('cuda')
-                  if features.is_cuda
-                  else torch.device('cpu'))
+        device = features.device
 
         if len(features.shape) < 3:
             raise ValueError('`features` needs to be [bsz, n_views, ...],'
@@ -66,7 +65,6 @@ class SupConLoss(nn.Module):
         anchor_dot_contrast = torch.div(
             torch.matmul(anchor_feature, contrast_feature.T),
             self.temperature)
-        
         # for numerical stability
         logits_max, _ = torch.max(anchor_dot_contrast, dim=1, keepdim=True)
         logits = anchor_dot_contrast - logits_max.detach()
@@ -84,11 +82,17 @@ class SupConLoss(nn.Module):
 
         # compute log_prob
         exp_logits = torch.exp(logits) * logits_mask
-        log_prob = logits - torch.log(exp_logits.sum(1, keepdim=True) + 1e-12)  # Add epsilon to avoid log(0)
+        log_prob = logits - torch.log(exp_logits.sum(1, keepdim=True))
 
         # compute mean of log-likelihood over positive
+        # modified to handle edge cases when there is no positive pair
+        # for an anchor point. 
+        # Edge case e.g.:- 
+        # features of shape: [4,1,...]
+        # labels:            [0,1,1,2]
+        # loss before mean:  [nan, ..., ..., nan] 
         mask_pos_pairs = mask.sum(1)
-        mask_pos_pairs = torch.where(mask_pos_pairs < 1e-6, torch.ones_like(mask_pos_pairs), mask_pos_pairs)
+        mask_pos_pairs = torch.where(mask_pos_pairs < 1e-6, 1, mask_pos_pairs)
         mean_log_prob_pos = (mask * log_prob).sum(1) / mask_pos_pairs
 
         # loss
@@ -97,6 +101,26 @@ class SupConLoss(nn.Module):
 
         return loss
 
+
+class CrossViewConsistency(nn.Module):
+    def __init__(self, batch_size, world_size):
+        super(CrossViewConsistency, self).__init__()
+        self.batch_size = batch_size
+        self.world_size = world_size
+        self.criteria = SupConLoss()
+    
+    def forward(self, agent_features, labels):
+        # agent_features: [B, seq_len, n_views, 64]
+        N = self.batch_size * self.world_size
+
+        if self.world_size > 1:
+            agent_features = torch.cat(GatherLayer.apply(agent_features), dim=0)
+            labels = torch.cat(GatherLayer.apply(labels), dim=0)
+        
+        loss = self.criteria(agent_features, labels)
+        
+        return loss
+        
 
 class KLDivLoss(nn.Module):
     def __init__(self):
@@ -122,20 +146,6 @@ class L2Loss(nn.Module):
         return loss
 
 
-class CrossViewConsistency(nn.Module):
-    def __init__(self, div='KL'):
-        super().__init__()
-        self.criteria = KLDivLoss() if div == 'KL' else L2Loss()
-    
-    def forward(self, features, moe):
-        # features or logits: [1, n_views, C]
-        # moe: [1, C]
-        ground_truth = moe.detach()
-        ground_truth.requires_grad = False
-        ground_truth = ground_truth.repeat(features.size(1), 1)
-        loss = self.criteria(features.squeeze(), ground_truth)
-        return loss
-
 class CrossSampleConsistency(nn.Module):
     def __init__(self, batch_size, world_size):
         super(CrossSampleConsistency, self).__init__()
@@ -152,3 +162,5 @@ class CrossSampleConsistency(nn.Module):
             labels = torch.cat(GatherLayer.apply(labels), dim=0)
         loss = self.criteria(features, labels)
         return loss
+
+

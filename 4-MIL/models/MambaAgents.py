@@ -50,6 +50,8 @@ class MambaAgents(nn.Module):
     def __init__(self, d_in, d_model, d_state, dropout, n_views, n_layers, n_classes):
         super().__init__()
 
+        self.n_layers = n_layers
+
         self.in_proj = nn.Sequential(
             nn.Linear(d_in, d_model),
             nn.ReLU()
@@ -61,15 +63,27 @@ class MambaAgents(nn.Module):
         self.pool = nn.AdaptiveAvgPool1d(1)
         self.classifier = nn.Linear(d_model, n_classes)
 
+        self.projector = nn.Sequential(
+            nn.Linear(d_model, d_model, bias=False),
+            nn.ReLU(),
+            nn.Linear(d_model, 64, bias=False),
+        )
+
     def forward(self, x):
         # x: [B, seq_len, n_views, d_in]
         # h: [B, seq_len, n_views, d_model]
         h = self.in_proj(x)
+
+        # agent_features: [B, seq_len, n_views, d_model]
+        agent_features = None
         
-        for layer in self.agent_layers:
+        for i, layer in enumerate(self.agent_layers):
             res = h
             h = layer(h)
-            h = h.mean(dim=2, keepdim=True) + res # broadcast?
+            # log the agent features of the last layer
+            if i == self.n_layers - 1:
+                agent_features = h
+            h = h.mean(dim=2, keepdim=True) + res # broadcast
         
         # merge the views
         # h: [B, seq_len, d_model]
@@ -80,4 +94,10 @@ class MambaAgents(nn.Module):
         features = self.pool(h.permute(0, 2, 1)).squeeze(-1)
         logits = self.classifier(features)
 
-        return ModelOutputs(features=features, logits=logits, hidden_states=h)
+        # project the agent features for contrastive learning
+        # agent_features: [B, seq_len, n_views, 64]
+        agent_features = self.projector(agent_features)
+        # agent_features: [B, seq_len, n_views, 64] -> [B, n_views, 64]
+        agent_features = agent_features.mean(dim=1)
+
+        return ModelOutputs(features=features, logits=logits, hidden_states=h, agent_features=agent_features)

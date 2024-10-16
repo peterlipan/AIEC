@@ -29,8 +29,9 @@ def main(gpu, args, wandb_logger):
     args.device = rank
 
     if args.world_size > 1 and not args.dataparallel:
-        dist.init_process_group("nccl", rank=rank, world_size=args.world_size)
         torch.cuda.set_device(rank)
+        dist.init_process_group("nccl", rank=rank, world_size=args.world_size)
+        
 
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
@@ -119,7 +120,7 @@ if __name__ == '__main__':
     # Master address for distributed data parallel
     os.environ["CUDA_VISIBLE_DEVICES"] = args.visible_gpus
     os.environ['MASTER_ADDR'] = 'localhost'
-    os.environ['MASTER_PORT'] = '12345'
+    os.environ['MASTER_PORT'] = '12344'
 
     # check checkpoints path
     if not os.path.exists(args.checkpoints):
