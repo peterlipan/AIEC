@@ -4,13 +4,13 @@ gpus: 4
 nr: 0
 dataparallel: 0
 workers: 8
-visible_gpus: "4,5,6,7"
+visible_gpus: "0,1,2,3"
 
 # Paths
 data_root: "/mnt/zhen_chen/features_TongJi_DTFD_x20_down_2_4"
-csv_path: ""
-train_csv: "TongJi_AIEC_Training_Aug.csv"
-test_csv: "./TongJi_AIEC_Testing.csv"
+csv_path: "TongJi_AIEC_Aug.csv"
+train_csv: ""
+test_csv: ""
 checkpoints: "./checkpoints"
 
 # Dataset Options
@@ -23,11 +23,12 @@ tree_dropout: "0.08, 0.04, 0.01"
 visible_levels: [0, 1, 2, 3]
 
 # Model options
-backbone: "MambaAgents"
+backbone: "TreeMamba"
 n_experts: 8
 dropout: 0.4
+depth: 1
 activation: "relu"
-num_layers: 2
+num_layers: 1
 num_heads: 8
 d_model: 512
 d_state: 32

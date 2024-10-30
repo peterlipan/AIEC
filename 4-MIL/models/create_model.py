@@ -5,9 +5,10 @@ from .MambaMIL import MambaMIL
 from .MambaExperts import MambaExperts
 from .ABMIL import DAttention
 from .MambaAgents import MambaAgents
+from .TreeMamba import TreeMamba
 
 def create_model(args):
-    available_archs = ['MambaMIL', 'Experts', 'TransMIL', 'ABMIL', 'MambaAgents']
+    available_archs = ['MambaMIL', 'Experts', 'TransMIL', 'ABMIL', 'MambaAgents', 'TreeMamba']
     assert args.backbone in available_archs, f"backbone must be one of {available_archs}"
     if 'MambaMIL' in args.backbone:
         model = MambaMIL(d_in=args.feature_dim, n_classes=args.num_classes, dropout=args.dropout, d_state=args.d_state,
@@ -22,6 +23,10 @@ def create_model(args):
         model = DAttention(d_in=args.feature_dim, n_classes=args.num_classes, dropout=args.dropout, act=args.activation)
     elif args.backbone == 'MambaAgents':
         model = MambaAgents(d_in=args.feature_dim, d_model=args.d_model, d_state=args.d_state, dropout=args.dropout, n_views=args.n_experts, n_layers=args.num_layers, n_classes=args.num_classes)
+    elif args.backbone == 'TreeMamba':
+        model = TreeMamba(d_in=args.feature_dim, depths=[args.depth for _ in range(args.num_layers)], dims=[args.d_model for _ in range(args.num_layers)], 
+        d_state=args.d_state, n_views=args.n_experts, n_classes=args.num_classes, drop_rate=args.dropout, 
+        )
     else:
         model = None
     return model
