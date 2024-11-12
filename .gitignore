@@ -22,6 +22,9 @@ results/
 *.csv
 !reference.csv
 !TongJi_AIEC.csv
+!TongJi_AIEC_Aug.csv
+!TongJi_AIEC_Training_Final.csv
+!TongJi_AIEC_Testing_Final.csv
 
 # weights
 *.pth
