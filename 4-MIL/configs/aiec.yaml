@@ -8,9 +8,7 @@ visible_gpus: "0,1,2,3"
 
 # Paths
 data_root: "/mnt/zhen_chen/features_TongJi_DTFD_x20_down_2_4"
-csv_path: "TongJi_AIEC_Aug.csv"
-train_csv: ""
-test_csv: ""
+wsi_csv_path: "./AIEC_Slides_Phenotypes.xlsx"
 checkpoints: "./checkpoints"
 
 # Dataset Options
@@ -21,34 +19,29 @@ lowest_level: 0
 downsample_factor: "2, 4"
 tree_dropout: "0.08, 0.04, 0.01"
 visible_levels: [0, 1, 2, 3]
+task: "grading"
+kfold: 5
 
 # Model options
-backbone: "TreeMamba"
-n_experts: 8
+backbone: "PathAgents"
+n_views: 8
 dropout: 0.4
 depth: 1
-activation: "relu"
-num_layers: 1
-num_heads: 8
+num_layers: 2
 d_model: 512
 d_state: 32
-KFold: 10
-agg: 'avg'
 fix_agent: 1
-pretrained: ""
 
 # training options
 seed: 0
 batch_size: 2
 epochs: 200
-fold: 0
 random_layer: 0.5
+surv_loss: 'ce'
 
 # optimizer options
-opt: "adamw"
+optimizer: "Adam"
 lr: 2.0e-4
-beta1: 0.9
-beta2: 0.98
 scheduler: True
 weight_decay: 0.01
 warmup_epochs: 15

@@ -15,6 +15,7 @@ checkpoints: "./checkpoints"
 # Dataset Options
 dataset: "CAMELYON16_DTFD"
 feature_dim: 1024
+task: "cls"
 
 # Model options
 backbone: "TransMIL"

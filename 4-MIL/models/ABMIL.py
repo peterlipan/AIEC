@@ -20,13 +20,12 @@ def initialize_weights(module):
             nn.init.constant_(m.weight, 1.0)
 
 class DAttention(nn.Module):
-    def __init__(self, d_in, n_classes, dropout, act, survival = False):
+    def __init__(self, d_in, n_classes, dropout=True, act='gelu', surv_classes=4, task='cls'):
         super(DAttention, self).__init__()
         self.L = 512
         self.D = 128
         self.K = 1
         self.feature = [nn.Linear(d_in, 512)]
-        self.survival = survival
         
         if act.lower() == 'gelu':
             self.feature += [nn.GELU()]
@@ -47,32 +46,74 @@ class DAttention(nn.Module):
             nn.Linear(self.L*self.K, n_classes),
         )
 
+        if 'cls' in task and 'surv' in task:
+            self.hazard_layer = nn.Linear(self.L*self.K, surv_classes)
+        self.task = task
+
 
         # self.apply(initialize_weights)
-
-
-    def forward(self, x):
+    
+    def encode(self, data):
+        # the shared forward process for both classification and survival tasks
+        # return the features (B, C) before the last linear layer
+        x = data['x']
         feature = self.feature(x)
         feature = feature.squeeze()
         A = self.attention(feature)
         A = torch.transpose(A, -1, -2)  # KxN
         A_raw = A
         A = F.softmax(A, dim=-1)  # softmax over N
-        M = torch.mm(A, feature)  # KxL
-        
-        logits = self.classifier(M)
-        
-        return ModelOutputs(logits=logits, features=M)
+        features = torch.mm(A, feature)  # KxL
+        return features
+
+    def cls_forward(self, data):
+        features = self.encode(data)
+        logits = self.classifier(features)
+        y_hat = torch.argmax(logits, dim=1)
+        y_prob = F.softmax(logits, dim=1)
+        return ModelOutputs(features=features, logits=logits, y_hat=y_hat, y_prob=y_prob)
+
+    def surv_forward(self, data):
+        features = self.encode(data)
+        logits = self.classifier(features)
+        y_hat = torch.argmax(logits, dim=1)
+        hazards = torch.sigmoid(logits)
+        surv = torch.cumprod(1 - hazards, dim=1)
+        return ModelOutputs(features=features, logits=logits, hazards=hazards, surv=surv, y_hat=y_hat)
+
+    def multitask_forward(self, data):
+        features = self.encode(data)
+        cls_logits = self.classifier(features)
+        y_hat = torch.argmax(cls_logits, dim=1)
+        y_prob = F.softmax(cls_logits, dim=1)
+
+        # survival task
+        surv_logits = self.hazard_layer(features)
+        surv_y_hat = torch.argmax(surv_logits, dim=1)
+        hazards = torch.sigmoid(surv_logits)
+        surv = torch.cumprod(1 - hazards, dim=1)
+
+        return ModelOutputs(features=features, cls_logits=cls_logits, y_hat=y_hat, y_prob=y_prob, 
+                            surv_logits=surv_logits, surv_y_hat=surv_y_hat, hazards=hazards, surv=surv)
+
+    def forward(self, data):
+        if 'cls' in self.task and 'surv' in self.task:
+            return self.multitask_forward(data)
+        elif 'cls' in self.task:
+            return self.cls_forward(data)
+        elif 'surv' in self.task:
+            return self.surv_forward(data)
+        else:
+            raise NotImplementedError
 
 
 class GatedAttention(nn.Module):
-    def __init__(self, d_in, n_classes, dropout, act, survival = False):
+    def __init__(self, d_in, n_classes, dropout=True, act='gelu', surv_classes=4, task='cls'):
         super(GatedAttention, self).__init__()
         self.L = 512
         self.D = 128
         self.K = 1
         self.feature = [nn.Linear(d_in, 512)]
-        self.survival = survival
         if act.lower() == 'gelu':
             self.feature += [nn.GELU()]
         else:
@@ -98,8 +139,14 @@ class GatedAttention(nn.Module):
         self.classifier = nn.Sequential(
             nn.Linear(self.L*self.K, n_classes),
         )
-
-    def forward(self, x):
+        if 'cls' in task and 'surv' in task:
+            self.hazard_layer = nn.Linear(self.L*self.K, surv_classes)
+        self.task = task
+    
+    def encode(self, data):
+        # the shared forward process for both classification and survival tasks
+        # return the features (B, C) before the last linear layer
+        x = data['x']
         feature = self.feature(x)
         feature = feature.squeeze()
 
@@ -109,14 +156,49 @@ class GatedAttention(nn.Module):
         A = torch.transpose(A, 1, 0)  # KxN
         A = F.softmax(A, dim=1)  # softmax over N
 
-        M = torch.mm(A, feature)  # KxL
+        features = torch.mm(A, feature)  # KxL
+        return features
 
-        logits = self.classifier(M)
+    def cls_forward(self, data):
+        features = self.encode(data)
+        logits = self.classifier(features)
+        y_hat = torch.argmax(logits, dim=1)
+        y_prob = F.softmax(logits, dim=1)
                 
-        # keep the same API with the clam
-        return ModelOutputs(logits=logtis, features=M)
+        return ModelOutputs(features=features, logits=logits, y_hat=y_hat, y_prob=y_prob)
 
+    def surv_forward(self, data):
+        features = self.encode(data)
+        logits = self.classifier(features)
+        y_hat = torch.argmax(logits, dim=1)
+        hazards = torch.sigmoid(logits)
+        surv = torch.cumprod(1 - hazards, dim=1)
+        return ModelOutputs(features=features, logits=logits, hazards=hazards, surv=surv, y_hat=y_hat)
+    
+    def multitask_forward(self, data):
+        features = self.encode(data)
+        cls_logits = self.classifier(features)
+        y_hat = torch.argmax(cls_logits, dim=1)
+        y_prob = F.softmax(cls_logits, dim=1)
 
+        # survival task
+        surv_logits = self.hazard_layer(features)
+        surv_y_hat = torch.argmax(surv_logits, dim=1)
+        hazards = torch.sigmoid(surv_logits)
+        surv = torch.cumprod(1 - hazards, dim=1)
+
+        return ModelOutputs(features=features, cls_logits=cls_logits, y_hat=y_hat, y_prob=y_prob, 
+                            surv_logits=surv_logits, surv_y_hat=surv_y_hat, hazards=hazards, surv=surv)
+    
+    def forward(self, data):
+        if 'cls' in self.task and 'surv' in self.task:
+            return self.multitask_forward(data)
+        elif 'cls' in self.task:
+            return self.cls_forward(data)
+        elif 'surv' in self.task:
+            return self.surv_forward(data)
+        else:
+            raise NotImplementedError
 
 
 

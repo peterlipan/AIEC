@@ -1,1 +1,1 @@
-from .create_model import create_model
+from .utils import get_model
