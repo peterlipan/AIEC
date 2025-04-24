@@ -29,7 +29,7 @@ class LineaEmbedding(nn.Module):
     
 
 class SinusoidalPositionalEncoding(nn.Module):
-    def __init__(self, embed_dim, max_len=1000):
+    def __init__(self, embed_dim, max_len=20000):
         """
         Sinusoidal positional encoding for sequences.
 
@@ -65,27 +65,29 @@ class SinusoidalPositionalEncoding(nn.Module):
         return x + self.pe[:, :seq_len, :]
 
 
-class LinearGather(nn.Module):
-    def __init__(self, d_model, n_views):
+class AttentionGather(nn.Module):
+    def __init__(self, d_model, dropout=0.1):
         super().__init__()
-        self.attention = nn.Linear(d_model, n_views)
+        self.attention = nn.Sequential(
+            nn.Linear(d_model, d_model),
+            nn.Tanh(),
+            nn.Linear(d_model, 1),
+            nn.Dropout(dropout)
+        )
+        
+    def forward(self, h):
+        # h: [B, L, V, C]
+        B, L, V, C = h.shape
+        h_flat = h.view(B*L, V, C)  # [B*L, V, C]
+        
+        # Compute attention scores
+        attn_scores = self.attention(h_flat)  # [B*L, V, 1]
+        attn_weights = F.softmax(attn_scores.squeeze(-1), dim=-1)  # [B*L, V]
+        
+        # Weighted combination
+        out_flat = torch.einsum('bv,bvc->bc', attn_weights, h_flat)
+        return out_flat.view(B, L, C)  # [B, L, C]
 
-    def forward(self, x):
-        # x: [B, L, V, C]
-        B, L, V, C = x.size()
-
-        x_reshaped = x.view(B * L, V, C)
-        view_summary = x_reshaped.mean(dim=2)  # [B*L, V]
-        scores = self.attention(view_summary)  # [B*L, V]
-        scores = scores.view(B, L, V) # [B, L, V]
-
-        attention_weights = F.softmax(scores, dim=-1)  # [B, L, V]
-        attention_weights = attention_weights.unsqueeze(-1)  # [B, L, V, 1]
-
-        # Compute weighted sum of views
-        gathered = (x * attention_weights).sum(dim=2)  # [B, L, C]
-
-        return gathered
 
 
 class MultiViewMamba(nn.Module):
@@ -107,7 +109,7 @@ class MultiViewMamba(nn.Module):
         if self.gather is not None:
             h = self.gather(h) # [B, L, C]
         else:
-            h += torch.mean(h, dim=2, keepdim=True) # [B, L, V, C]
+            h = h + torch.mean(h, dim=2, keepdim=True) # [B, L, V, C]
 
         return h
 
@@ -127,7 +129,7 @@ class PathAgents(nn.Module):
         for _ in range(n_layers - 1):
             self.encoder.append(MultiViewMamba(d_model, d_state, n_views, gather=None, dropout=dropout))
         self.encoder.append(MultiViewMamba(d_model, d_state, n_views, 
-                                           gather=LinearGather(d_model, n_views),
+                                           gather=AttentionGather(d_model, dropout=dropout),
                                            dropout=dropout))
         self.encoder = nn.ModuleList(self.encoder)
         self.pooler = nn.AdaptiveAvgPool1d(1)

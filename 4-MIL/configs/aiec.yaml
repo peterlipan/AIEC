@@ -4,10 +4,10 @@ gpus: 4
 nr: 0
 dataparallel: 0
 workers: 8
-visible_gpus: "0,1,2,3"
+visible_gpus: "0,1,4,6"
 
 # Paths
-data_root: "/mnt/zhen_chen/features_TongJi_DTFD_x20_down_2_4"
+data_root: "/data1/public/Li/features_TongJi_DTFD_x20_down_2_4"
 wsi_csv_path: "./AIEC_Slides_Phenotypes.xlsx"
 checkpoints: "./checkpoints"
 
@@ -24,10 +24,10 @@ kfold: 5
 
 # Model options
 backbone: "PathAgents"
-n_views: 8
+n_views: 4
 dropout: 0.4
 depth: 1
-num_layers: 2
+n_layers: 2
 d_model: 512
 d_state: 32
 fix_agent: 1
@@ -35,8 +35,8 @@ fix_agent: 1
 # training options
 seed: 0
 batch_size: 2
-epochs: 200
-random_layer: 0.5
+epochs: 50
+random_layer: 0.3
 surv_loss: 'ce'
 
 # optimizer options
@@ -44,6 +44,6 @@ optimizer: "Adam"
 lr: 2.0e-4
 scheduler: True
 weight_decay: 0.01
-warmup_epochs: 15
+warmup_epochs: 5
 lambda_xview: 0.5
 

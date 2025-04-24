@@ -223,15 +223,12 @@ class AbstractReadout(object):
         raise NotImplementedError("Subclasses should implement this!")
     
     def __call__(self, root):
-        if random.random() < self.random_layer:
-            num_level = random.randint(1, len(self.levels) - 1)
-            self.levels = random.sample(self.levels, num_level) + [len(self.levels) - 1]
         return self._readout_func(root)
 
 
 class DepthFirstReadout(AbstractReadout):
     
-    def _readout_func(self, root):
+    def _readout_func(self, root):            
         return torch.stack([node.data for node in PreOrderIter(root) if node.level in self.levels])
 
 

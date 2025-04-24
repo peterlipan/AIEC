@@ -2,14 +2,11 @@ import os
 import torch
 import wandb
 import random
-import pickle
 import argparse
 import numpy as np
-import pandas as pd
+from datetime import timedelta
 import torch.distributed as dist
 import torch.multiprocessing as mp
-import torch.nn as nn
-
 from utils import yaml_config_hook, Trainer
 
 
@@ -21,14 +18,19 @@ def main(gpu, args, wandb_logger):
     args.rank = rank
     args.device = rank
 
+    if args.world_size > 1:
+        torch.cuda.set_device(rank)
+        dist.init_process_group("nccl", rank=rank, world_size=args.world_size, timeout=timedelta(hours=12))
+
+
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
     random.seed(args.seed)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
-    trainer = Trainer(args, gpu, wandb_logger)
-    trainer.kfold_train()
+    trainer = Trainer(args, wandb_logger)
+    trainer.kfold_train(args)
     
 
 if __name__ == '__main__':
@@ -44,6 +46,7 @@ if __name__ == '__main__':
     args.world_size = args.gpus * args.nodes
     args.tree_dropout = [float(x) for x in args.tree_dropout.split(", ")]
     args.downsample_factor = [int(x) for x in args.downsample_factor.split(", ")]
+
 
     # Master address for distributed data parallel
     os.environ["CUDA_VISIBLE_DEVICES"] = args.visible_gpus

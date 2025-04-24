@@ -2,6 +2,7 @@ import os
 import torch
 import warnings
 import pandas as pd
+import torch.distributed as dist
 from models import get_model
 from datasets import AIECPyramidDataset, experts_train_transforms, experts_test_transforms
 from .metrics import compute_cls_metrics, compute_surv_metrics
@@ -45,7 +46,9 @@ class MetricLogger:
 
 
 class Trainer:
-    def __init__(self, args, wb_logger=None):
+    def __init__(self, args, wb_logger=None, verbose=True, val_steps=50):
+        self.verbose = verbose
+        self.val_steps = val_steps
         self.wsi_df = pd.read_excel(args.wsi_csv_path)
         self.args = args
         self.wb_logger = wb_logger
@@ -56,11 +59,11 @@ class Trainer:
         train_csv = self.wsi_df[self.wsi_df['Case.ID'].isin(train_patient_idx)]
         test_csv = self.wsi_df[self.wsi_df['Case.ID'].isin(test_patient_idx)]
 
-        train_transforms = experts_train_transforms(n_experts=args.n_experts, num_levels=args.num_levels, 
+        train_transforms = experts_train_transforms(n_experts=args.n_views, num_levels=args.num_levels, 
                                                     downsample_factor=args.downsample_factor, lowest_level=args.lowest_level, 
                                                     dropout=args.tree_dropout, visible_levels=args.visible_levels, 
                                                     fix_agent=args.fix_agent, random_layer=args.random_layer)
-        test_transforms = experts_test_transforms(n_experts=args.n_experts, num_levels=args.num_levels, 
+        test_transforms = experts_test_transforms(n_experts=args.n_views, num_levels=args.num_levels, 
                                                   downsample_factor=args.downsample_factor, lowest_level=args.lowest_level, 
                                                   visible_levels=args.visible_levels)
 
@@ -73,14 +76,14 @@ class Trainer:
             train_sampler = None
 
         self.train_loader = DataLoader(self.train_dataset, batch_size=args.batch_size, shuffle=(train_sampler is None),
-                                       drop_last=True, num_workers=args.workers, sampler=train_sampler, pin_memory=True,
+                                       drop_last=True, num_workers=args.workers, sampler=train_sampler, pin_memory=False,
                                        collate_fn=AIECPyramidDataset.collate_fn)
         
         if args.rank == 0:
             self.test_dataset = AIECPyramidDataset(args.data_root, test_csv, task=args.task, transforms=test_transforms)
 
             self.test_loader = DataLoader(self.test_dataset, batch_size=args.batch_size, shuffle=False,
-                                        drop_last=False, num_workers=args.workers, pin_memory=True,
+                                        drop_last=False, num_workers=args.workers, pin_memory=False,
                                         collate_fn=AIECPyramidDataset.collate_fn)
             
             print(f"Train dataset size: {len(self.train_dataset)}, Test dataset size: {len(self.test_dataset)}")
@@ -110,23 +113,24 @@ class Trainer:
             self.model = DDP(self.model, device_ids=[args.rank], static_graph=True)
 
     def kfold_train(self, args):
-        kfold = KFold(n_splits=args.kfold, shuffle=True, random_state=args.seed)
-
         patient_df = self.wsi_df.groupby('Case.ID').first().reset_index()
-        patient_list = patient_df['Case.ID'].values
         if args.task == 'grading':
+            patient_df = patient_df.dropna(subset=['Tumor.Grading'])
             patient_label_list = patient_df['Tumor.Grading'].values
         elif args.task == 'subtyping':
+            patient_df = patient_df.dropna(subset=['Tumor.MolecularSubtype'])
             patient_label_list = patient_df['Tumor.MolecularSubtype'].values
         elif args.task == 'survival':
+            patient_df = patient_df.dropna(subset=['Overall.Survival.Interval'])
             patient_label_list = patient_df['Overall.Survival.Interval'].values
         else:
             raise ValueError(f"Unknown task: {args.task}")
-        
+        patient_list = patient_df['Case.ID'].values
         kfold = StratifiedKFold(n_splits=args.kfold, shuffle=True, random_state=args.seed)
         
         for fold, (train_idx, test_idx) in enumerate(kfold.split(patient_list, patient_label_list)):
-            print('-'*20, f'Fold {fold}', '-'*20)
+            if self.args.rank == 0:
+                print('-'*20, f'Fold {fold}', '-'*20)
             train_pid = patient_list[train_idx]
             test_pid = patient_list[test_idx]
             self._dataset_split(train_pid, test_pid, args)
@@ -136,11 +140,12 @@ class Trainer:
 
             self.train(args)
             # validate for the fold
-            metric_dict = self.validate()
-            self.m_logger.update(metric_dict)
-            if self.verbose:
+            
+            if args.rank == 0 and self.verbose:
+                metric_dict = self.validate(args)
+                self.m_logger.update(metric_dict)
                 print('-'*20, f'Fold {fold} Metrics', '-'*20)
-            print(metric_dict)
+                print(metric_dict)
 
             # do univariate cox regression analysis
             # if 'surv' in self.task:
@@ -153,26 +158,34 @@ class Trainer:
         # self.save_model()
 
     def train(self, args):
+        torch.cuda.empty_cache()
         self.model.train()
         cur_iters = 0
         for i in range(self.args.epochs):
             for data in self.train_loader:
-                data = {k: v.cuda(non_blocking=True) if hasattr(v, 'cuda') else v for k, v in data.items()}
+                data = {k: v.cuda() if hasattr(v, 'cuda') else v for k, v in data.items()}
         
                 outputs = self.model(data['features'])
                 loss = self.criterion(outputs, data)
 
                 self.optimizer.zero_grad()
                 loss.backward()
+
+                if dist.is_available() and dist.is_initialized():
+                    for name, p in self.model.named_parameters():
+                        if p.grad is not None:
+                            dist.all_reduce(p.grad.data, op=dist.ReduceOp.SUM)
+                            p.grad.data /= dist.get_world_size()
+
                 self.optimizer.step()
                 if self.scheduler is not None:
                     self.scheduler.step()
 
                 cur_iters += 1
-                if self.verbose:
+                if self.verbose and args.rank == 0:
                     if cur_iters % self.val_steps == 0:
                         cur_lr = self.optimizer.param_groups[0]['lr']
-                        metric_dict = self.validate()
+                        metric_dict = self.validate(args)
                         print(f"Fold {self.fold} | Epoch {i} | Loss: {loss.item()} | Acc: {metric_dict['Accuracy']} | LR: {cur_lr}")
                         if self.wb_logger is not None:
                             self.wb_logger.log({f"Fold_{self.fold}": {
@@ -180,30 +193,30 @@ class Trainer:
                                 'Test': metric_dict
                             }})
 
-    def validate(self):
+    def validate(self, args):
         training = self.model.training
         self.model.eval()
 
-        if self.task == 'grading' or self.task == 'subtyping':
+        if args.task == 'grading' or args.task == 'subtyping':
             ground_truth = torch.Tensor().cuda()
             probabilities = torch.Tensor().cuda()
-        elif self.task == 'survival':
+        elif args.task == 'survival':
             event_indicator = torch.Tensor().cuda() # whether the event (death) has occurred
             event_time = torch.Tensor().cuda()
             estimate = torch.Tensor().cuda()
 
         with torch.no_grad():
             for data in self.test_loader:
-                data = {k: v.cuda(non_blocking=True) if hasattr(v, 'cuda') else v for k, v in data.items()}
+                data = {k: v.cuda() if hasattr(v, 'cuda') else v for k, v in data.items()}
                 outputs = self.model(data['features'])
 
-                if self.task == 'grading' or self.task == 'subtyping':
+                if args.task == 'grading' or args.task == 'subtyping':
                     prob = outputs.y_prob
                     ground_truth = torch.cat((ground_truth, data['label']), dim=0)
                     probabilities = torch.cat((probabilities, prob), dim=0)
                     metric_dict = compute_cls_metrics(ground_truth, probabilities)
                 
-                elif self.task == 'survival':
+                elif args.task == 'survival':
                     risk = -torch.sum(outputs['surv'], dim=1)
                     event_indicator = torch.cat((event_indicator, data['dead']), dim=0)
                     event_time = torch.cat((event_time, data['event_time']), dim=0)

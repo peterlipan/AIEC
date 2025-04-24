@@ -30,6 +30,8 @@ class Slide:
         self.c = 0 if row['Death(Yes or No)']=='Yes' else 1
         self.dead = 1 if row['Death(Yes or No)']=='Yes' else 0
         features = torch.load(path)
+        if not os.path.exists(path):
+            raise FileNotFoundError(f"File not found: {path}")
         if transforms is not None:
             # if a list of transforms, implement MoE
             if isinstance(transforms, list):
