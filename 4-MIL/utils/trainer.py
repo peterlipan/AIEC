@@ -214,14 +214,17 @@ class Trainer:
                     prob = outputs.y_prob
                     ground_truth = torch.cat((ground_truth, data['label']), dim=0)
                     probabilities = torch.cat((probabilities, prob), dim=0)
-                    metric_dict = compute_cls_metrics(ground_truth, probabilities)
                 
                 elif args.task == 'survival':
                     risk = -torch.sum(outputs['surv'], dim=1)
                     event_indicator = torch.cat((event_indicator, data['dead']), dim=0)
                     event_time = torch.cat((event_time, data['event_time']), dim=0)
                     estimate = torch.cat((estimate, risk), dim=0)
-                    metric_dict = compute_surv_metrics(event_indicator, event_time, estimate)
+
+            if args.task == 'grading' or args.task == 'subtyping':
+                metric_dict = compute_cls_metrics(ground_truth, probabilities)
+            elif args.task == 'survival':
+                metric_dict = compute_surv_metrics(event_indicator, event_time, estimate)
         
         self.model.train(training)
 

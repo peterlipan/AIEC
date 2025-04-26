@@ -19,7 +19,7 @@ lowest_level: 0
 downsample_factor: "2, 4"
 tree_dropout: "0.08, 0.04, 0.01"
 visible_levels: [0, 1, 2, 3]
-task: "grading"
+task: "subtyping"
 kfold: 5
 
 # Model options
