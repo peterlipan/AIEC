@@ -8,13 +8,13 @@ import torch.nn.functional as F
 
 
 class LineaEmbedding(nn.Module):
-    def __init__(self, n_regions, embed_dim, dropout=0.1):
+    def __init__(self, d_in, d_model, dropout=0.1):
         super().__init__()
-        self.fc = nn.Linear(n_regions, embed_dim)
-        self.norm = nn.LayerNorm(embed_dim, eps=1e-6)
+        self.fc = nn.Linear(d_in, d_model)
+        self.norm = nn.LayerNorm(d_model, eps=1e-6)
         self.activation = nn.GELU()
         self.dropout = nn.Dropout(dropout)
-        self.input_norm = nn.BatchNorm1d(n_regions)
+        self.input_norm = nn.BatchNorm1d(d_in)
 
     def forward(self, x):
         # x: [B, L, C]
@@ -104,14 +104,14 @@ class MultiViewMamba(nn.Module):
         h = []
         for i, model in enumerate(self.models):
             h.append(model(x[..., i, :]))
-        h = torch.stack(h, dim=2)
+        agents = torch.stack(h, dim=2)
 
         if self.gather is not None:
-            h = self.gather(h) # [B, L, C]
+            h = self.gather(agents) # [B, L, C]
         else:
-            h = h + torch.mean(h, dim=2, keepdim=True) # [B, L, V, C]
+            h = agents + torch.mean(agents, dim=2, keepdim=True) # [B, L, V, C]
 
-        return h
+        return agents, h
 
 
 class PathAgents(nn.Module):
@@ -139,11 +139,11 @@ class PathAgents(nn.Module):
         assert task in ['grading', 'subtyping', 'survival'], \
             f"task must be one of ['grading', 'subtyping', 'survival'], but got {task}"
 
-        # self.contrast_head = nn.Sequential(
-        #     nn.Linear(self.d_model, self.d_model),
-        #     nn.ReLU(),
-        #     nn.Linear(self.d_model, 128)
-        # )
+        self.projector= nn.Sequential(
+            nn.Linear(self.d_model, self.d_model),
+            nn.ReLU(),
+            nn.Linear(self.d_model, 128)
+        )
 
         self._init_params()
 
@@ -171,26 +171,32 @@ class PathAgents(nn.Module):
         x = rearrange(x, '(b v) l c -> b l v c', b=B, v=V)
 
         for layer in self.encoder:
-            x = layer(x)
+            agents, x = layer(x)
         # x: [B, L, C]
         x = self.pooler(x.transpose(1, 2)).squeeze(-1)  # [B, C]
         features = self.norm(x)
         logits = self.classifier(x)
 
-        return features, logits
+        # agents: [B, L, V, C]
+        agents = agents.mean(dim=1)  # [B, V, C]
+        agents = self.projector(agents)
+
+        return features, logits, agents
 
     def cls_forward(self, x):
-        features, logits = self.feature_forward(x)
+        features, logits, agents = self.feature_forward(x)
         y_hat = torch.argmax(logits, dim=1)
         y_prob = F.softmax(logits, dim=1)
-        return ModelOutputs(features=features, logits=logits, y_hat=y_hat, y_prob=y_prob)
+        return ModelOutputs(features=features, logits=logits, agents=agents,
+                            y_hat=y_hat, y_prob=y_prob)
     
     def surv_forward(self, x):
-        features, logits = self.feature_forward(x)
+        features, logits, agents = self.feature_forward(x)
         y_hat = torch.argmax(logits, dim=1)
         hazards = torch.sigmoid(logits)
         surv = torch.cumprod(1 - hazards, dim=1)
-        return ModelOutputs(features=features, logits=logits, hazards=hazards, surv=surv, y_hat=y_hat)
+        return ModelOutputs(features=features, logits=logits, agents=agents,
+                            hazards=hazards, surv=surv, y_hat=y_hat)
     
     def forward(self, x):
         if self.task == 'grading' or self.task == 'subtyping':

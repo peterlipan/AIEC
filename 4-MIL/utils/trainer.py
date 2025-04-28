@@ -10,7 +10,7 @@ from torch.utils.data import DataLoader
 from sklearn.model_selection import KFold, StratifiedKFold
 from transformers.optimization import get_cosine_schedule_with_warmup
 from torch.nn.parallel import DistributedDataParallel as DDP
-from .losses import CrossEntropySurvLoss, NLLSurvLoss, CoxSurvLoss, CrossEntropyClsLoss
+from .losses import CrossEntropySurvLoss, NLLSurvLoss, CoxSurvLoss, CrossEntropyClsLoss, CrossViewConsistency
 
 
 class MetricLogger:
@@ -55,9 +55,7 @@ class Trainer:
         self.m_logger = MetricLogger(n_folds=args.kfold)
         self.surv2lossfunc = {'nll': NLLSurvLoss, 'cox': CoxSurvLoss, 'ce': CrossEntropySurvLoss}
     
-    def _dataset_split(self, train_patient_idx, test_patient_idx, args):
-        train_csv = self.wsi_df[self.wsi_df['Case.ID'].isin(train_patient_idx)]
-        test_csv = self.wsi_df[self.wsi_df['Case.ID'].isin(test_patient_idx)]
+    def _dataset_split(self, train_csv, test_csv, args):
 
         train_transforms = experts_train_transforms(n_experts=args.n_views, num_levels=args.num_levels, 
                                                     downsample_factor=args.downsample_factor, lowest_level=args.lowest_level, 
@@ -102,6 +100,8 @@ class Trainer:
         else:
             self.criterion = self.surv2lossfunc[self.args.surv_loss.lower()]().cuda()
         
+        self.xview_criterion = CrossViewConsistency(args.batch_size, args.world_size).cuda()
+        
         if args.scheduler:
             self.scheduler = get_cosine_schedule_with_warmup(self.optimizer, args.warmup_epochs * step_per_epoch, 
                                                              args.epochs * step_per_epoch)
@@ -111,6 +111,19 @@ class Trainer:
         if args.world_size > 1:
             self.model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(self.model)
             self.model = DDP(self.model, device_ids=[args.rank], static_graph=True)
+
+
+    def run(self, args):
+        train_csv = pd.read_excel(args.train_csv_path)
+        test_csv = pd.read_excel(args.test_csv_path)
+        self._dataset_split(train_csv, test_csv, args)
+        self.fold = 0
+        self.train(args)
+        if args.rank == 0:
+            metric_dict = self.validate(args)
+            print('-'*20, 'Metrics', '-'*20)
+            print(metric_dict)
+
 
     def kfold_train(self, args):
         patient_df = self.wsi_df.groupby('Case.ID').first().reset_index()
@@ -133,7 +146,9 @@ class Trainer:
                 print('-'*20, f'Fold {fold}', '-'*20)
             train_pid = patient_list[train_idx]
             test_pid = patient_list[test_idx]
-            self._dataset_split(train_pid, test_pid, args)
+            train_csv = self.wsi_df[self.wsi_df['Case.ID'].isin(train_pid)]
+            test_csv = self.wsi_df[self.wsi_df['Case.ID'].isin(test_pid)]
+            self._dataset_split(train_csv, test_csv, args)
 
             self.m_logger._set_fold(fold)
             self.fold = fold
@@ -166,7 +181,9 @@ class Trainer:
                 data = {k: v.cuda() if hasattr(v, 'cuda') else v for k, v in data.items()}
         
                 outputs = self.model(data['features'])
-                loss = self.criterion(outputs, data)
+                xview_loss = self.xview_criterion(outputs['agents'], data['label'])
+                cls_loss = self.criterion(outputs, data)
+                loss = cls_loss + args.lambda_xview * xview_loss
 
                 self.optimizer.zero_grad()
                 loss.backward()
@@ -189,7 +206,10 @@ class Trainer:
                         print(f"Fold {self.fold} | Epoch {i} | Loss: {loss.item()} | Acc: {metric_dict['Accuracy']} | LR: {cur_lr}")
                         if self.wb_logger is not None:
                             self.wb_logger.log({f"Fold_{self.fold}": {
-                                'Train': {'loss': loss.item(), 'lr': cur_lr},
+                                'Train': {'loss': loss.item(), 
+                                          'cls_loss': cls_loss.item(),
+                                          'xview_loss': xview_loss.item(),
+                                          'lr': cur_lr},
                                 'Test': metric_dict
                             }})
 

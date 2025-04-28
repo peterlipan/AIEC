@@ -44,16 +44,16 @@ class Slide:
 
     
     def _to_dict(self):
-        self.label = torch.tensor(self.label).long()
-        self.event_time = torch.tensor(self.event_time).float()
-        self.c = torch.tensor(self.c).float()
-        self.dead = torch.tensor(self.dead).float()
+        label = torch.tensor(self.label).long()
+        event_time = torch.tensor(self.event_time).float()
+        c = torch.tensor(self.c).float()
+        dead = torch.tensor(self.dead).float()
         return {
             'features': self.features,
-            'label': self.label,
-            'event_time': self.event_time,
-            'c': self.c,
-            'dead': self.dead,
+            'label': label,
+            'event_time': event_time,
+            'c': c,
+            'dead': dead,
         }
         
 

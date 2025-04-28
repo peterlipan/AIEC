@@ -33,6 +33,8 @@ class SupConLoss(nn.Module):
         """
         device = features.device
 
+        features = F.normalize(features, dim=-1)
+
         if len(features.shape) < 3:
             raise ValueError('`features` needs to be [bsz, n_views, ...],'
                              'at least 3 dimensions are required')
@@ -112,7 +114,7 @@ class CrossViewConsistency(nn.Module):
         self.criteria = SupConLoss()
     
     def forward(self, agent_features, labels):
-        # agent_features: [B, seq_len, n_views, 64]
+        # agent_features: [B, n_views, 128]
         N = self.batch_size * self.world_size
 
         if self.world_size > 1:
@@ -212,7 +214,7 @@ class CrossEntropyClsLoss(nn.Module):
         return F.cross_entropy(
             outputs['logits'],
             data['label'],
-            label_smoothing=0.1,
+            # label_smoothing=0.1,
         )
 
 

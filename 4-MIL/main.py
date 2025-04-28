@@ -30,7 +30,7 @@ def main(gpu, args, wandb_logger):
     torch.backends.cudnn.benchmark = False
 
     trainer = Trainer(args, wandb_logger)
-    trainer.kfold_train(args)
+    trainer.run(args)
     
 
 if __name__ == '__main__':
@@ -63,7 +63,7 @@ if __name__ == '__main__':
         config = vars(args)
 
         wandb_logger = wandb.init(
-            project="AIEC",
+            project="AIEC_Patients",
             config=config
         )
     else:

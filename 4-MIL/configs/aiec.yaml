@@ -3,12 +3,14 @@ nodes: 1
 gpus: 4
 nr: 0
 dataparallel: 0
-workers: 8
-visible_gpus: "0,1,4,6"
+workers: 0
+visible_gpus: "0,1,2,3"
 
 # Paths
 data_root: "/data1/public/Li/features_TongJi_DTFD_x20_down_2_4"
-wsi_csv_path: "./AIEC_Slides_Phenotypes.xlsx"
+train_csv_path: "./splits/AIEC_Slides_Training.xlsx"
+test_csv_path: "./splits/AIEC_Slides_Testing.xlsx"
+wsi_csv_path: "./splits/AIEC_Slides_Phenotypes.xlsx"
 checkpoints: "./checkpoints"
 
 # Dataset Options
@@ -17,14 +19,14 @@ feature_dim: 1024
 num_levels: 3
 lowest_level: 0
 downsample_factor: "2, 4"
-tree_dropout: "0.08, 0.04, 0.01"
+tree_dropout: "0.1, 0.05, 0.01"
 visible_levels: [0, 1, 2, 3]
 task: "subtyping"
 kfold: 5
 
 # Model options
 backbone: "PathAgents"
-n_views: 4
+n_views: 8
 dropout: 0.4
 depth: 1
 n_layers: 2
@@ -35,7 +37,7 @@ fix_agent: 1
 # training options
 seed: 0
 batch_size: 2
-epochs: 50
+epochs: 80
 random_layer: 0.3
 surv_loss: 'ce'
 
@@ -44,6 +46,6 @@ optimizer: "Adam"
 lr: 2.0e-4
 scheduler: True
 weight_decay: 0.01
-warmup_epochs: 5
+warmup_epochs: 10
 lambda_xview: 0.5
 
