@@ -218,6 +218,24 @@ class CrossEntropyClsLoss(nn.Module):
         )
 
 
+class MultiviewCrossEntropyClsLoss(nn.Module):
+    def __init__(self, mode='all'):
+        super().__init__()
+        self.mode = mode
+        self.ce = nn.CrossEntropyLoss()
+    
+    def forward(self, outputs, data):
+        B, V, C = outputs['agents'].size()
+        if self.mode == 'all':
+            logits = outputs['agents'].view(B * V, C)
+            labels = data['label'].unsqueeze(1).repeat(1, V).view(-1)  # Repeat labels for each view and flatten
+        elif self.mode == 'first':
+            logits = outputs['agents'][:, 0, :] 
+        else:
+            raise ValueError(f'Unknown mode: {self.mode}')
+
+        return self.ce(logits, labels)
+
 
 class NLLSurvLoss(nn.Module):
     def __init__(self, alpha=0.15):

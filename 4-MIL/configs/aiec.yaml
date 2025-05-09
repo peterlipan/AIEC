@@ -27,7 +27,7 @@ kfold: 5
 # Model options
 backbone: "PathAgents"
 n_views: 8
-dropout: 0.4
+dropout: 0.5
 depth: 1
 n_layers: 2
 d_model: 512
@@ -37,7 +37,7 @@ fix_agent: 1
 # training options
 seed: 0
 batch_size: 2
-epochs: 80
+epochs: 200
 random_layer: 0.3
 surv_loss: 'ce'
 
@@ -45,7 +45,7 @@ surv_loss: 'ce'
 optimizer: "Adam"
 lr: 2.0e-4
 scheduler: True
-weight_decay: 0.01
+weight_decay: 0.03
 warmup_epochs: 10
 lambda_xview: 0.5
 

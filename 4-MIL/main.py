@@ -30,7 +30,7 @@ def main(gpu, args, wandb_logger):
     torch.backends.cudnn.benchmark = False
 
     trainer = Trainer(args, wandb_logger)
-    trainer.run(args)
+    trainer.kfold_train(args)
     
 
 if __name__ == '__main__':

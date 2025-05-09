@@ -179,23 +179,26 @@ class PathAgents(nn.Module):
 
         # agents: [B, L, V, C]
         agents = agents.mean(dim=1)  # [B, V, C]
+        agents_logits = self.classifier(agents)
         agents = self.projector(agents)
 
-        return features, logits, agents
+        return features, logits, agents, agents_logits
 
     def cls_forward(self, x):
-        features, logits, agents = self.feature_forward(x)
+        features, logits, agents, agents_logits = self.feature_forward(x)
         y_hat = torch.argmax(logits, dim=1)
         y_prob = F.softmax(logits, dim=1)
         return ModelOutputs(features=features, logits=logits, agents=agents,
+                            agents_logits=agents_logits,
                             y_hat=y_hat, y_prob=y_prob)
     
     def surv_forward(self, x):
-        features, logits, agents = self.feature_forward(x)
+        features, logits, agents, agents_logits = self.feature_forward(x)
         y_hat = torch.argmax(logits, dim=1)
         hazards = torch.sigmoid(logits)
         surv = torch.cumprod(1 - hazards, dim=1)
         return ModelOutputs(features=features, logits=logits, agents=agents,
+                            agents_logits=agents_logits,
                             hazards=hazards, surv=surv, y_hat=y_hat)
     
     def forward(self, x):

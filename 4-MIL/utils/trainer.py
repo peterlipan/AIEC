@@ -10,7 +10,7 @@ from torch.utils.data import DataLoader
 from sklearn.model_selection import KFold, StratifiedKFold
 from transformers.optimization import get_cosine_schedule_with_warmup
 from torch.nn.parallel import DistributedDataParallel as DDP
-from .losses import CrossEntropySurvLoss, NLLSurvLoss, CoxSurvLoss, CrossEntropyClsLoss, CrossViewConsistency
+from .losses import CrossEntropySurvLoss, NLLSurvLoss, CoxSurvLoss, CrossEntropyClsLoss, CrossViewConsistency, MultiviewCrossEntropyClsLoss
 
 
 class MetricLogger:
@@ -101,6 +101,7 @@ class Trainer:
             self.criterion = self.surv2lossfunc[self.args.surv_loss.lower()]().cuda()
         
         self.xview_criterion = CrossViewConsistency(args.batch_size, args.world_size).cuda()
+        self.multiview_criterion = MultiviewCrossEntropyClsLoss().cuda()
         
         if args.scheduler:
             self.scheduler = get_cosine_schedule_with_warmup(self.optimizer, args.warmup_epochs * step_per_epoch, 
@@ -182,7 +183,7 @@ class Trainer:
         
                 outputs = self.model(data['features'])
                 xview_loss = self.xview_criterion(outputs['agents'], data['label'])
-                cls_loss = self.criterion(outputs, data)
+                cls_loss = self.criterion(outputs, data) + self.multiview_criterion(outputs, data)
                 loss = cls_loss + args.lambda_xview * xview_loss
 
                 self.optimizer.zero_grad()
