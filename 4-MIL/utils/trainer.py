@@ -180,10 +180,12 @@ class Trainer:
         for i in range(self.args.epochs):
             for data in self.train_loader:
                 data = {k: v.cuda() if hasattr(v, 'cuda') else v for k, v in data.items()}
+
         
                 outputs = self.model(data['features'])
+                print(f"Label: {data['label']}, Logits: {outputs['logits']}")
                 xview_loss = self.xview_criterion(outputs['agents'], data['label'])
-                cls_loss = self.criterion(outputs, data) + self.multiview_criterion(outputs, data)
+                cls_loss = self.criterion(outputs, data) + args.lambda_cls * self.multiview_criterion(outputs, data)
                 loss = cls_loss + args.lambda_xview * xview_loss
 
                 self.optimizer.zero_grad()

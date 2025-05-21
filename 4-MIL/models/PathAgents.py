@@ -7,12 +7,16 @@ from einops import rearrange
 import torch.nn.functional as F
 
 
-class LineaEmbedding(nn.Module):
+def swiglu(x):
+    a, b = x.chunk(2, dim=-1)
+    return a * F.silu(b)
+
+
+class LinearEmbedding(nn.Module):
     def __init__(self, d_in, d_model, dropout=0.1):
         super().__init__()
         self.fc = nn.Linear(d_in, d_model)
         self.norm = nn.LayerNorm(d_model, eps=1e-6)
-        self.activation = nn.GELU()
         self.dropout = nn.Dropout(dropout)
         self.input_norm = nn.BatchNorm1d(d_in)
 
@@ -23,7 +27,7 @@ class LineaEmbedding(nn.Module):
         x = x.transpose(1, 2)
         x = self.fc(x)
         x = self.norm(x)
-        x = self.activation(x)
+        x = swiglu(x)
         x = self.dropout(x)
         return x
     
@@ -65,6 +69,19 @@ class SinusoidalPositionalEncoding(nn.Module):
         return x + self.pe[:, :seq_len, :]
 
 
+class CrossAgentCommunication(nn.Module):
+    def __init__(self, d_model, dropout=0.5, n_heads=8):
+        super().__init__()
+        self.attn = nn.MultiheadAttention(d_model, n_heads, dropout=dropout, batch_first=True)
+    
+    def forward(self, x):
+        B, L, V, C = x.shape
+        x = x.permute(0, 1, 3, 2).reshape(B * L, C, V).permute(0, 2, 1)  # [B*L, V, C]
+        out, _ = self.attn(x, x, x)
+        out = out.permute(0, 2, 1).reshape(B, L, C, V).permute(0, 1, 3, 2)
+        return out
+
+
 class AttentionGather(nn.Module):
     def __init__(self, d_model, dropout=0.1):
         super().__init__()
@@ -89,27 +106,121 @@ class AttentionGather(nn.Module):
         return out_flat.view(B, L, C)  # [B, L, C]
 
 
+class CrossAttentionGather(nn.Module):
+    def __init__(self, d_model, dropout=0.5, n_heads=4):
+        super().__init__()
+        self.attn = nn.MultiheadAttention(d_model, n_heads, dropout=dropout, batch_first=True)
+
+    def forward(self, h):
+        B, L, V, C = h.shape
+        h = h.permute(0, 2, 1, 3).reshape(B*V, L, C)  # [B*V, L, C]
+        context = h.mean(dim=0, keepdim=True)  # [1, L, C]
+        context = context.repeat(B*V, 1, 1)  # Match batch size with h
+        out, _ = self.attn(context, h, h)
+        out = out.view(B, V, L, C).mean(dim=1)  # Aggregate over V
+        return out
+    
+
+class GatedGather(nn.Module):
+    def __init__(self, d_model, n_views, dropout=0.1):
+        super().__init__()
+        self.gate_net = nn.Sequential(
+            nn.Linear(d_model, d_model*2),
+            nn.GELU(),
+            nn.LayerNorm(d_model*2),
+            nn.Linear(d_model*2, n_views),
+            nn.Softmax(dim=-1)
+        )
+        self.feature_proj = nn.Linear(d_model, d_model)
+        
+    def forward(self, h):
+        """
+        Inputs: [B, L, V, C]
+        Outputs: [B, L, C]
+        """
+        B, L, V, C = h.shape
+        
+        # 1. Compute adaptive weights
+        context = h.mean(dim=2)  # Global context [B, L, C]
+        weights = self.gate_net(context)  # [B, L, V]
+        
+        # 2. Feature enhancement
+        proj_features = self.feature_proj(h)  # [B, L, V, C]
+        
+        # 3. Gated fusion
+        return torch.einsum('blv,blvc->blc', weights, proj_features)
+
+
+class MaxGather(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.pooler = nn.AdaptiveAvgPool1d(1)
+    
+    def forward(self, h):
+        """
+        Inputs: [B, L, V, C]
+        Outputs: [B, C]
+        """
+        B, L, V, C = h.shape
+        h = h.reshape(B*L, V, C)
+        h = self.pooler(h.transpose(1, 2)).squeeze(-1)  # [B*L, C]
+        h = h.view(B, L, C)
+        return h
+
+
 
 class MultiViewMamba(nn.Module):
-    def __init__(self, d_model, d_state, n_views, gather=None, dropout=0.1):
+    def __init__(self, d_model, d_state, n_views, gather=None, dropout=0.1, agent_dropout_rate=0.5):
         super().__init__()
-        self.models = nn.ModuleList([nn.Sequential(nn.LayerNorm(d_model), 
-                                                   Mamba(d_model=d_model, d_state=d_state, d_conv=4, expand=2),
-                                                   nn.Dropout(dropout)) 
-                                                   for _ in range(n_views)])
+        self.models = nn.ModuleList([
+            nn.Sequential(
+                nn.LayerNorm(d_model), 
+                Mamba(d_model=d_model, d_state=d_state, d_conv=4, expand=2),
+                nn.Dropout(dropout)
+            ) for _ in range(n_views)
+        ])
         self.gather = gather
+        self.agent_dropout_rate = agent_dropout_rate
+        self.n_views = n_views
 
     def forward(self, x):
         # x: [B, L, V, C]
+        B, L, V, C = x.shape
+        assert V == self.n_views, f"Expected {self.n_views} views, got {V}"
+
         h = []
+
+        # --- Agent dropout ---
+        if self.training and self.agent_dropout_rate > 0:
+            # [B, V] mask where 1 = keep, 0 = drop
+            view_mask = torch.bernoulli(
+                (1.0 - self.agent_dropout_rate) * torch.ones(B, V, device=x.device)
+            )  # [B, V]
+
+            # Ensure at least one view is kept for each sample
+            for i in range(B):
+                if view_mask[i].sum() == 0:
+                    view_mask[i, torch.randint(0, V, (1,))] = 1
+        else:
+            view_mask = torch.ones(B, V, device=x.device)
+
         for i, model in enumerate(self.models):
-            h.append(model(x[..., i, :]))
-        agents = torch.stack(h, dim=2)
+            x_i = x[..., i, :]  # [B, L, C]
+            mask_i = view_mask[:, i].view(B, 1, 1)  # [B, 1, 1]
+            out_i = model(x_i) * mask_i  # [B, L, C]
+            h.append(out_i)
+
+        agents = torch.stack(h, dim=2)  # [B, L, V, C]
+
+        # Normalize if views are dropped (optional)
+        if self.training:
+            norm_factors = view_mask.sum(dim=1).clamp(min=1).view(B, 1, 1, 1)
+            agents = agents * (V / norm_factors)
 
         if self.gather is not None:
-            h = self.gather(agents) # [B, L, C]
+            h = self.gather(agents)  # [B, L, C]
         else:
-            h = agents + torch.mean(agents, dim=2, keepdim=True) # [B, L, V, C]
+            h = agents
 
         return agents, h
 
@@ -123,17 +234,22 @@ class PathAgents(nn.Module):
         self.d_state = d_state
         self.n_classes = n_classes
 
-        self.embedding = LineaEmbedding(d_in, d_model, dropout)
-        self.positional_encoding = SinusoidalPositionalEncoding(d_model)
+        self.embedding = LinearEmbedding(d_in, d_model, dropout=dropout)
         self.encoder = []
         for _ in range(n_layers - 1):
-            self.encoder.append(MultiViewMamba(d_model, d_state, n_views, gather=None, dropout=dropout))
+            self.encoder.append(MultiViewMamba(d_model, d_state, n_views, 
+                                               gather=CrossAgentCommunication(d_model, dropout=dropout),
+                                               dropout=dropout))
         self.encoder.append(MultiViewMamba(d_model, d_state, n_views, 
-                                           gather=AttentionGather(d_model, dropout=dropout),
+                                           gather=MaxGather(),
                                            dropout=dropout))
         self.encoder = nn.ModuleList(self.encoder)
+        
         self.pooler = nn.AdaptiveAvgPool1d(1)
         self.classifier = nn.Linear(d_model, n_classes)
+        self.agent_classifier = nn.Linear(d_model, n_classes)
+        self.agent_deltas = nn.Parameter(torch.zeros(n_views, d_model, n_classes))  # Learnable diffs
+
         self.norm = nn.LayerNorm(d_model, eps=1e-6)
         self.task = task
         assert task in ['grading', 'subtyping', 'survival'], \
@@ -142,10 +258,10 @@ class PathAgents(nn.Module):
         self.projector= nn.Sequential(
             nn.Linear(self.d_model, self.d_model),
             nn.ReLU(),
-            nn.Linear(self.d_model, 128)
+            nn.Linear(self.d_model, 64)
         )
 
-        self._init_params()
+        # self._init_params()
 
     def _init_params(self):
         for module in self.modules():
@@ -167,22 +283,21 @@ class PathAgents(nn.Module):
         B, L, V, C = x.size()
         x = rearrange(x, 'b l v c -> (b v) l c', b=B, v=V)
         x = self.embedding(x)
-        x = self.positional_encoding(x)
         x = rearrange(x, '(b v) l c -> b l v c', b=B, v=V)
 
         for layer in self.encoder:
             agents, x = layer(x)
         # x: [B, L, C]
-        x = self.pooler(x.transpose(1, 2)).squeeze(-1)  # [B, C]
-        features = self.norm(x)
+        x = self.norm(self.pooler(x.transpose(1, 2)).squeeze(-1))  # [B, C]
         logits = self.classifier(x)
 
         # agents: [B, L, V, C]
         agents = agents.mean(dim=1)  # [B, V, C]
-        agents_logits = self.classifier(agents)
+        agents_logits = self.agent_classifier(agents)  # [B, V, n_classes]
+
         agents = self.projector(agents)
 
-        return features, logits, agents, agents_logits
+        return x, logits, agents, agents_logits
 
     def cls_forward(self, x):
         features, logits, agents, agents_logits = self.feature_forward(x)

@@ -439,9 +439,9 @@ class TreeMamba(nn.Module):
         self.head = nn.Linear(self.num_features, n_classes) if n_classes > 0 else nn.Identity()
 
         self.projector = nn.Sequential(
-            nn.Linear(self.num_features, self.num_features, bias=False),
+            nn.Linear(self.num_features, self.num_features),
             nn.ReLU(),
-            nn.Linear(self.num_features, 64, bias=False),
+            nn.Linear(self.num_features, 64),
         )
 
         self.apply(self._init_weights)
