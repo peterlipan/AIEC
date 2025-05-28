@@ -22,7 +22,6 @@ def main(gpu, args, wandb_logger):
         torch.cuda.set_device(rank)
         dist.init_process_group("nccl", rank=rank, world_size=args.world_size, timeout=timedelta(hours=12))
 
-
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
     random.seed(args.seed)
@@ -30,8 +29,7 @@ def main(gpu, args, wandb_logger):
     torch.backends.cudnn.benchmark = False
 
     trainer = Trainer(args, wandb_logger)
-    trainer.kfold_train(args)
-    
+    trainer.run(args)
 
 if __name__ == '__main__':
     # args
@@ -43,10 +41,11 @@ if __name__ == '__main__':
     parser.add_argument('--debug', action="store_true", help='debug mode(disable wandb)')
     args = parser.parse_args()
 
+    torch.autograd.set_detect_anomaly(True)
+
     args.world_size = args.gpus * args.nodes
     args.tree_dropout = [float(x) for x in args.tree_dropout.split(", ")]
     args.downsample_factor = [int(x) for x in args.downsample_factor.split(", ")]
-
 
     # Master address for distributed data parallel
     os.environ["CUDA_VISIBLE_DEVICES"] = args.visible_gpus

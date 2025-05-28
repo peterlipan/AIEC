@@ -5,7 +5,7 @@ from imblearn.metrics import sensitivity_score, specificity_score
 from sksurv.metrics import concordance_index_censored
 
 
-def compute_cls_metrics(ground_truth, activations, avg='micro', demical_places=4):
+def compute_cls_metrics(ground_truth, activations, avg='micro', demical_places=6):
 
     ground_truth = ground_truth.cpu().detach().numpy()
     activations = activations.cpu().detach().numpy()

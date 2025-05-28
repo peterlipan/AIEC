@@ -74,14 +74,14 @@ class Trainer:
             train_sampler = None
 
         self.train_loader = DataLoader(self.train_dataset, batch_size=args.batch_size, shuffle=(train_sampler is None),
-                                       drop_last=True, num_workers=args.workers, sampler=train_sampler, pin_memory=False,
+                                       drop_last=True, num_workers=args.workers, sampler=train_sampler, pin_memory=True,
                                        collate_fn=AIECPyramidDataset.collate_fn)
         
         if args.rank == 0:
             self.test_dataset = AIECPyramidDataset(args.data_root, test_csv, task=args.task, transforms=test_transforms)
 
             self.test_loader = DataLoader(self.test_dataset, batch_size=args.batch_size, shuffle=False,
-                                        drop_last=False, num_workers=args.workers, pin_memory=False,
+                                        drop_last=False, num_workers=args.workers, pin_memory=True,
                                         collate_fn=AIECPyramidDataset.collate_fn)
             
             print(f"Train dataset size: {len(self.train_dataset)}, Test dataset size: {len(self.test_dataset)}")
@@ -94,7 +94,7 @@ class Trainer:
 
         self.model = get_model(args).cuda()
         self.optimizer = getattr(torch.optim, args.optimizer)(self.model.parameters(), lr=args.lr,
-                                                              weight_decay=args.weight_decay)
+                                                              weight_decay=args.weight_decay, betas=(0.9, 0.99))
         if self.args.task == 'grading' or self.args.task == 'subtyping':
             self.criterion = CrossEntropyClsLoss().cuda()
         else:
@@ -179,23 +179,21 @@ class Trainer:
         cur_iters = 0
         for i in range(self.args.epochs):
             for data in self.train_loader:
-                data = {k: v.cuda() if hasattr(v, 'cuda') else v for k, v in data.items()}
+                data = {k: v.cuda(non_blocking=True) if hasattr(v, 'cuda') else v for k, v in data.items()}
 
-        
                 outputs = self.model(data['features'])
-                print(f"Label: {data['label']}, Logits: {outputs['logits']}")
                 xview_loss = self.xview_criterion(outputs['agents'], data['label'])
-                cls_loss = self.criterion(outputs, data) + args.lambda_cls * self.multiview_criterion(outputs, data)
+                cls_loss = self.criterion(outputs, data)
                 loss = cls_loss + args.lambda_xview * xview_loss
 
                 self.optimizer.zero_grad()
                 loss.backward()
 
-                if dist.is_available() and dist.is_initialized():
-                    for name, p in self.model.named_parameters():
-                        if p.grad is not None:
-                            dist.all_reduce(p.grad.data, op=dist.ReduceOp.SUM)
-                            p.grad.data /= dist.get_world_size()
+                # if dist.is_available() and dist.is_initialized():
+                #     for name, p in self.model.named_parameters():
+                #         if p.grad is not None:
+                #             dist.all_reduce(p.grad.data, op=dist.ReduceOp.SUM)
+                #             p.grad.data /= dist.get_world_size()
 
                 self.optimizer.step()
                 if self.scheduler is not None:
@@ -223,17 +221,19 @@ class Trainer:
         if args.task == 'grading' or args.task == 'subtyping':
             ground_truth = torch.Tensor().cuda()
             probabilities = torch.Tensor().cuda()
+            loss = 0.0
         elif args.task == 'survival':
             event_indicator = torch.Tensor().cuda() # whether the event (death) has occurred
             event_time = torch.Tensor().cuda()
-            estimate = torch.Tensor().cuda()
+            estimate = torch.Tensor().cuda()        
 
         with torch.no_grad():
             for data in self.test_loader:
-                data = {k: v.cuda() if hasattr(v, 'cuda') else v for k, v in data.items()}
+                data = {k: v.cuda(non_blocking=True) if hasattr(v, 'cuda') else v for k, v in data.items()}
                 outputs = self.model(data['features'])
 
                 if args.task == 'grading' or args.task == 'subtyping':
+                    loss += self.criterion(outputs, data).item()
                     prob = outputs.y_prob
                     ground_truth = torch.cat((ground_truth, data['label']), dim=0)
                     probabilities = torch.cat((probabilities, prob), dim=0)
@@ -246,6 +246,7 @@ class Trainer:
 
             if args.task == 'grading' or args.task == 'subtyping':
                 metric_dict = compute_cls_metrics(ground_truth, probabilities)
+                metric_dict['Loss'] = loss / len(self.test_loader)
             elif args.task == 'survival':
                 metric_dict = compute_surv_metrics(event_indicator, event_time, estimate)
         

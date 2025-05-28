@@ -19,6 +19,7 @@ class LinearEmbedding(nn.Module):
         self.norm = nn.LayerNorm(d_model, eps=1e-6)
         self.dropout = nn.Dropout(dropout)
         self.input_norm = nn.BatchNorm1d(d_in)
+        self.activation = nn.GELU()
 
     def forward(self, x):
         # x: [B, L, C]
@@ -27,7 +28,7 @@ class LinearEmbedding(nn.Module):
         x = x.transpose(1, 2)
         x = self.fc(x)
         x = self.norm(x)
-        x = swiglu(x)
+        x = self.activation(x)
         x = self.dropout(x)
         return x
     
@@ -247,7 +248,7 @@ class PathAgents(nn.Module):
         
         self.pooler = nn.AdaptiveAvgPool1d(1)
         self.classifier = nn.Linear(d_model, n_classes)
-        self.agent_classifier = nn.Linear(d_model, n_classes)
+        # self.agent_classifier = nn.Linear(d_model, n_classes)
         self.agent_deltas = nn.Parameter(torch.zeros(n_views, d_model, n_classes))  # Learnable diffs
 
         self.norm = nn.LayerNorm(d_model, eps=1e-6)
@@ -293,27 +294,25 @@ class PathAgents(nn.Module):
 
         # agents: [B, L, V, C]
         agents = agents.mean(dim=1)  # [B, V, C]
-        agents_logits = self.agent_classifier(agents)  # [B, V, n_classes]
+        # agents_logits = self.agent_classifier(agents)  # [B, V, n_classes]
 
         agents = self.projector(agents)
 
-        return x, logits, agents, agents_logits
+        return x, logits, agents
 
     def cls_forward(self, x):
-        features, logits, agents, agents_logits = self.feature_forward(x)
+        features, logits, agents = self.feature_forward(x)
         y_hat = torch.argmax(logits, dim=1)
         y_prob = F.softmax(logits, dim=1)
         return ModelOutputs(features=features, logits=logits, agents=agents,
-                            agents_logits=agents_logits,
                             y_hat=y_hat, y_prob=y_prob)
     
     def surv_forward(self, x):
-        features, logits, agents, agents_logits = self.feature_forward(x)
+        features, logits, agents = self.feature_forward(x)
         y_hat = torch.argmax(logits, dim=1)
         hazards = torch.sigmoid(logits)
         surv = torch.cumprod(1 - hazards, dim=1)
         return ModelOutputs(features=features, logits=logits, agents=agents,
-                            agents_logits=agents_logits,
                             hazards=hazards, surv=surv, y_hat=y_hat)
     
     def forward(self, x):

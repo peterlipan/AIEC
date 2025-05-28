@@ -19,32 +19,32 @@ feature_dim: 1024
 num_levels: 3
 lowest_level: 0
 downsample_factor: "2, 4"
-tree_dropout: "0.05, 0.03, 0.01"
+tree_dropout: "0.08, 0.04, 0.01"
 visible_levels: [0, 1, 2, 3]
 task: "subtyping"
 kfold: 5
 
 # Model options
-backbone: "PathAgents"
+backbone: "TreeMamba"
 n_views: 8
-dropout: 0.5
+dropout: 0.4
 n_layers: 1
-d_model: 256
+d_model: 512
 d_state: 32
 fix_agent: 1
 
 # training options
-seed: 0
-batch_size: 4
-epochs: 500
+seed: 2
+batch_size: 3
+epochs: 400
 random_layer: 0.3
 surv_loss: 'ce'
 
 # optimizer options
 optimizer: "AdamW"
-lr: 1.0e-3
+lr: 5.0e-5
 scheduler: True
-weight_decay: 0.1
-warmup_epochs: 50
-lambda_xview: 0.3
+weight_decay: 1.0
+warmup_epochs: 20
+lambda_xview: 0.05
 lambda_cls: 0.0

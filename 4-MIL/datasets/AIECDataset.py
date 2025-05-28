@@ -13,7 +13,9 @@ class Slide:
         # row: a row in the WSI information dataframe
         subtype = row['Tumor.MolecularSubtype']
         self.filename = row['Filename']
-        path = os.path.join(root, subtype, 'pt_files', self.filename)
+        self.path = os.path.join(root, subtype, 'pt_files', self.filename)
+        self.transforms = transforms
+        self.features = None
         
         if task == 'grading':
             self.label_enc = {'I': 0, 'II': 1, 'III': 2}
@@ -29,27 +31,26 @@ class Slide:
         self.event_time = row['Overall.Survival.Months'] * 30
         self.c = 0 if row['Death(Yes or No)']=='Yes' else 1
         self.dead = 1 if row['Death(Yes or No)']=='Yes' else 0
-        features = torch.load(path)
-        if not os.path.exists(path):
-            raise FileNotFoundError(f"File not found: {path}")
-        if transforms is not None:
-            # if a list of transforms, implement MoE
-            if isinstance(transforms, list):
-                # features: [seq_len, n_views, n_features]
-                features = pad_sequence([transform(features) for transform in transforms], batch_first=False)
-            else:
-                # features: [seq_len, n_features]
-                features = transforms(features)
-        self.features = features
-
+        self.features = torch.load(self.path)
     
     def _to_dict(self):
+        if self.transforms is not None:
+            # if a list of transforms, implement MoE
+            if isinstance(self.transforms, list):
+                # features: [seq_len, n_views, n_features]
+                features = pad_sequence([transform(self.features) for transform in self.transforms], batch_first=False)
+            else:
+                # features: [seq_len, n_features]
+                features = self.transforms(self.features)
+        else:
+            features = self.features
+
         label = torch.tensor(self.label).long()
         event_time = torch.tensor(self.event_time).float()
         c = torch.tensor(self.c).float()
         dead = torch.tensor(self.dead).float()
         return {
-            'features': self.features,
+            'features': features,
             'label': label,
             'event_time': event_time,
             'c': c,
