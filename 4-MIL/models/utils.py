@@ -32,8 +32,8 @@ def get_model(args):
                            dropout=args.dropout, task=args.task)
     elif args.backbone == 'TreeMamba':
         from .TreeMamba import TreeMamba
-        model = TreeMamba(d_in=args.feature_dim, d_model=args.d_model, 
-                          d_state=args.d_state, n_layers=args.n_layers, 
-                          n_views=args.n_views, n_classes=args.n_classes, 
-                          dropout=args.dropout, task=args.task)
+
+        model = TreeMamba(d_in=args.feature_dim, depths=[1 for _ in range(args.n_layers)], dims=[args.d_model for _ in range(args.n_layers)], 
+        d_state=args.d_state, n_views=args.n_views, n_classes=args.n_classes, drop_rate=args.dropout, 
+        )
     return model

@@ -4,7 +4,7 @@ gpus: 4
 nr: 0
 dataparallel: 0
 workers: 0
-visible_gpus: "4,5,6,7"
+visible_gpus: "2,3,4,5"
 
 # Paths
 data_root: "/data1/public/Li/features_TongJi_DTFD_x20_down_2_4"
@@ -19,7 +19,7 @@ feature_dim: 1024
 num_levels: 3
 lowest_level: 0
 downsample_factor: "2, 4"
-tree_dropout: "0.08, 0.04, 0.01"
+tree_dropout: "0.1, 0.05, 0.01"
 visible_levels: [0, 1, 2, 3]
 task: "subtyping"
 kfold: 5
@@ -35,14 +35,14 @@ fix_agent: 1
 
 # training options
 seed: 2
-batch_size: 3
+batch_size: 4
 epochs: 400
-random_layer: 0.3
+random_layer: 0.1
 surv_loss: 'ce'
 
 # optimizer options
 optimizer: "AdamW"
-lr: 5.0e-5
+lr: 2.0e-4
 scheduler: True
 weight_decay: 1.0
 warmup_epochs: 20

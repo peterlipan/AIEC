@@ -177,40 +177,51 @@ class Trainer:
         torch.cuda.empty_cache()
         self.model.train()
         cur_iters = 0
+        accumulation_steps = 5  # Number of steps to accumulate gradients
+        self.optimizer.zero_grad()
+
         for i in range(self.args.epochs):
-            for data in self.train_loader:
+            for step, data in enumerate(self.train_loader):
                 data = {k: v.cuda(non_blocking=True) if hasattr(v, 'cuda') else v for k, v in data.items()}
 
                 outputs = self.model(data['features'])
                 xview_loss = self.xview_criterion(outputs['agents'], data['label'])
                 cls_loss = self.criterion(outputs, data)
                 loss = cls_loss + args.lambda_xview * xview_loss
+                loss = loss / accumulation_steps  # Normalize loss
 
-                self.optimizer.zero_grad()
                 loss.backward()
 
-                # if dist.is_available() and dist.is_initialized():
-                #     for name, p in self.model.named_parameters():
-                #         if p.grad is not None:
-                #             dist.all_reduce(p.grad.data, op=dist.ReduceOp.SUM)
-                #             p.grad.data /= dist.get_world_size()
+                if (step + 1) % accumulation_steps == 0 or (step + 1 == len(self.train_loader)):
+                    # Clip gradients after accumulation
+                    # torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=5.0)
 
-                self.optimizer.step()
-                if self.scheduler is not None:
-                    self.scheduler.step()
+                    grad_norm = 0.0
+                    for p in self.model.parameters():
+                        if p.grad is not None:
+                            grad_norm += p.grad.data.norm(2).item() ** 2
+                    grad_norm = grad_norm ** 0.5
 
-                cur_iters += 1
-                if self.verbose and args.rank == 0:
-                    if cur_iters % self.val_steps == 0:
+                    self.optimizer.step()
+                    self.optimizer.zero_grad()
+
+                    if self.scheduler is not None:
+                        self.scheduler.step()
+
+                    cur_iters += 1
+                    if self.verbose and args.rank == 0 and cur_iters % self.val_steps == 0:
                         cur_lr = self.optimizer.param_groups[0]['lr']
                         metric_dict = self.validate(args)
-                        print(f"Fold {self.fold} | Epoch {i} | Loss: {loss.item()} | Acc: {metric_dict['Accuracy']} | LR: {cur_lr}")
+                        print(f"Fold {self.fold} | Epoch {i} | Loss: {loss.item() * accumulation_steps:.4f} | "
+                            f"Acc: {metric_dict['Accuracy']} | LR: {cur_lr}")
                         if self.wb_logger is not None:
                             self.wb_logger.log({f"Fold_{self.fold}": {
-                                'Train': {'loss': loss.item(), 
-                                          'cls_loss': cls_loss.item(),
-                                          'xview_loss': xview_loss.item(),
-                                          'lr': cur_lr},
+                                'Train': {'loss': loss.item() * accumulation_steps, 
+                                        'cls_loss': cls_loss.item(),
+                                        'xview_loss': xview_loss.item(),
+                                        'grad_norm': grad_norm,
+                                        'effective_step': cur_lr * grad_norm,
+                                        'lr': cur_lr},
                                 'Test': metric_dict
                             }})
 

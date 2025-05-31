@@ -327,21 +327,19 @@ class VSSBlock(nn.Module):
         d_state: int = 16,
         n_views: int = 8,
         drop_path: float = 0,
+        norm_layer: Callable[..., torch.nn.Module] = partial(nn.LayerNorm, eps=1e-6),
         attn_drop_rate: float = 0,
         **kwargs,
     ):
         super().__init__()
-        self.ln_1 = nn.LayerNorm(d_model)
+        self.ln_1 = norm_layer(d_model)
         self.self_attention = SS2D(d_model=d_model, dropout=attn_drop_rate, d_state=d_state, n_views=n_views, **kwargs)
         self.drop_path = DropPath(drop_path)
 
-    def _forward(self, x):
+    def forward(self, x):
         out = self.self_attention(self.ln_1(x))
         x = x + self.drop_path(out)
         return x
-
-    def forward(self, x):
-        return checkpoint.checkpoint(self._forward, x) if self.training else self._forward(x)
 
 
 class VSSLayer(nn.Module):
@@ -401,38 +399,49 @@ class VSSLayer(nn.Module):
 
 
 class TreeMamba(nn.Module):
-    def __init__(self, d_in=1024, d_model=512, d_state=16, 
-                 n_views=8, n_classes=4, n_layers=2, dropout=0.5,
-                 task='grading', **kwargs):
+    def __init__(self, d_in=1024, depths=[1], dims=[512], d_state=16, n_views=8, n_classes=4,
+                drop_rate=0.2, attn_drop_rate=0., drop_path_rate=0.6,
+                norm_layer=nn.LayerNorm, patch_norm=True,
+                use_checkpoint=False, **kwargs):
         super().__init__()
-        self.n_layers = n_layers
-        self.d_model = d_model
-        self.task = task
+        self.num_layers = len(depths)
+        if isinstance(dims, int):
+            dims = [int(dims * 2 ** i_layer) for i_layer in range(self.num_layers)]
+        self.embed_dim = dims[0]
+        self.num_features = dims[-1]
+        self.dims = dims
 
-        dpr = [x.item() for x in torch.linspace(0, dropout, n_layers + 1)]  # stochastic depth decay rule
+        self.pos_drop = nn.Dropout(p=drop_rate)
 
-        self.fc1 = nn.Sequential(nn.Linear(d_in, d_model), nn.ReLU(), nn.Dropout(p=dropout))
+        dpr = [x.item() for x in torch.linspace(0, drop_path_rate, sum(depths))]  # stochastic depth decay rule
+
+        self.fc1 = nn.Sequential(nn.Linear(d_in, dims[0]), nn.ReLU())
 
         self.layers = nn.ModuleList()
-        for i_layer in range(self.n_layers):
-            layer = VSSBlock(
-                d_model=d_model,
-                d_state=d_state,
+        for i_layer in range(self.num_layers):
+            layer = VSSLayer(
+                d_model=dims[i_layer],
+                depth=depths[i_layer],
                 n_views=n_views,
-                attn_drop_rate=dropout, 
-                drop_path=dpr[i_layer + 1],
+                d_state=math.ceil(dims[0] / 6) if d_state is None else d_state, # 20240109
+                drop=drop_rate, 
+                attn_drop=attn_drop_rate,
+                drop_path=dpr[sum(depths[:i_layer]):sum(depths[:i_layer + 1])],
+                norm_layer=norm_layer,
+                downsample=None,
+                use_checkpoint=use_checkpoint,
             )
             self.layers.append(layer)
 
-        self.norm = nn.LayerNorm(self.d_model)
+        self.norm = norm_layer(self.num_features)
         self.avgpool = nn.AdaptiveAvgPool1d(1)
         self.maxpool = nn.AdaptiveMaxPool1d(1)
-        self.head = nn.Linear(self.d_model, n_classes) if n_classes > 0 else nn.Identity()
+        self.head = nn.Linear(self.num_features, n_classes) if n_classes > 0 else nn.Identity()
 
         self.projector = nn.Sequential(
-            nn.Linear(self.d_model, self.d_model, bias=False),
+            nn.Linear(self.num_features, self.num_features, bias=False),
             nn.ReLU(),
-            nn.Linear(self.d_model, 64, bias=False),
+            nn.Linear(self.num_features, 64, bias=False),
         )
 
         self.apply(self._init_weights)
@@ -462,8 +471,8 @@ class TreeMamba(nn.Module):
     def no_weight_decay_keywords(self):
         return {'relative_position_bias_table'}
 
-    def feature_forward(self, x):
-        x = self.fc1(x)
+    def forward_features(self, x):
+        x = self.pos_drop(x)
 
         for layer in self.layers:
             x = layer(x)
@@ -474,34 +483,21 @@ class TreeMamba(nn.Module):
         x = rearrange(x, "b l v d -> (b v) d l")
         x = self.maxpool(x).squeeze(-1) # BV, d
         
-        agents = self.projector(x).view(B, V, -1) # B, V, 64
+        agent_features = self.projector(x).view(B, V, -1) # B, V, 64
 
         x = rearrange(x, "(b v) d -> b d v", b=B, v=V)
         # gather different tokens
-        features = self.maxpool(x).squeeze(-1) # B, d
-        logits = self.head(features)
+        slide_features = self.maxpool(x).squeeze(-1) # B, d
 
-        return features, logits, agents
+        return agent_features, slide_features
 
-    def cls_forward(self, x):
-        features, logits, agents = self.feature_forward(x)
-        y_hat = torch.argmax(logits, dim=1)
-        y_prob = F.softmax(logits, dim=1)
-        return ModelOutputs(features=features, logits=logits, agents=agents,
-                            y_hat=y_hat, y_prob=y_prob)
-    
-    def surv_forward(self, x):
-        features, logits, agents = self.feature_forward(x)
-        y_hat = torch.argmax(logits, dim=1)
-        hazards = torch.sigmoid(logits)
-        surv = torch.cumprod(1 - hazards, dim=1)
-        return ModelOutputs(features=features, logits=logits, agents=agents,
-                            hazards=hazards, surv=surv, y_hat=y_hat)
-    
     def forward(self, x):
-        if self.task == 'grading' or self.task == 'subtyping':
-            return self.cls_forward(x)
-        elif self.task == 'survival':
-            return self.surv_forward(x)
-        else:
-            raise NotImplementedError
+        # x: [B, L, V, C]
+
+        x = self.fc1(x)
+        agent_features, slide_features = self.forward_features(x) # x: [B, L, V, d]
+        logits= self.head(slide_features)
+        y_prob = F.softmax(logits, dim=-1)
+
+        return ModelOutputs(features=slide_features, logits=logits, agents=agent_features,
+                            y_prob=y_prob)
