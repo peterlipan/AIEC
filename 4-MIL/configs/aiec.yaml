@@ -4,7 +4,7 @@ gpus: 4
 nr: 0
 dataparallel: 0
 workers: 0
-visible_gpus: "2,3,4,5"
+visible_gpus: "4,5,6,7"
 
 # Paths
 data_root: "/data1/public/Li/features_TongJi_DTFD_x20_down_2_4"
@@ -28,14 +28,14 @@ kfold: 5
 backbone: "TreeMamba"
 n_views: 8
 dropout: 0.4
-n_layers: 1
+n_layers: 3
 d_model: 512
 d_state: 32
 fix_agent: 1
 
 # training options
 seed: 2
-batch_size: 4
+batch_size: 1
 epochs: 400
 random_layer: 0.1
 surv_loss: 'ce'
@@ -43,8 +43,9 @@ surv_loss: 'ce'
 # optimizer options
 optimizer: "AdamW"
 lr: 2.0e-4
+accumulation: 8
 scheduler: True
-weight_decay: 1.0
+weight_decay: 0.01
 warmup_epochs: 20
 lambda_xview: 0.05
 lambda_cls: 0.0

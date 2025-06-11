@@ -4,12 +4,13 @@ import warnings
 import pandas as pd
 import torch.distributed as dist
 from models import get_model
-from datasets import AIECPyramidDataset, experts_train_transforms, experts_test_transforms
+from datasets import AIECPyramidDataset, get_train_transforms, get_test_transforms
 from .metrics import compute_cls_metrics, compute_surv_metrics
 from torch.utils.data import DataLoader
 from sklearn.model_selection import KFold, StratifiedKFold
 from transformers.optimization import get_cosine_schedule_with_warmup
 from torch.nn.parallel import DistributedDataParallel as DDP
+from torch.utils.data.distributed import DistributedSampler
 from .losses import CrossEntropySurvLoss, NLLSurvLoss, CoxSurvLoss, CrossEntropyClsLoss, CrossViewConsistency, MultiviewCrossEntropyClsLoss
 
 
@@ -57,17 +58,16 @@ class Trainer:
     
     def _dataset_split(self, train_csv, test_csv, args):
 
-        train_transforms = experts_train_transforms(n_experts=args.n_views, num_levels=args.num_levels, 
-                                                    downsample_factor=args.downsample_factor, lowest_level=args.lowest_level, 
-                                                    dropout=args.tree_dropout, visible_levels=args.visible_levels, 
-                                                    fix_agent=args.fix_agent, random_layer=args.random_layer)
-        test_transforms = experts_test_transforms(n_experts=args.n_views, num_levels=args.num_levels, 
-                                                  downsample_factor=args.downsample_factor, lowest_level=args.lowest_level, 
-                                                  visible_levels=args.visible_levels)
+        train_transforms = get_train_transforms(n_experts=args.n_views, num_levels=args.num_levels, 
+                                            downsample_factor=args.downsample_factor, lowest_level=args.lowest_level, 
+                                            dropout=args.tree_dropout, visible_levels=args.visible_levels,)
+        test_transforms = get_test_transforms(n_experts=args.n_views, num_levels=args.num_levels, 
+                                          downsample_factor=args.downsample_factor, lowest_level=args.lowest_level, 
+                                          visible_levels=args.visible_levels)
 
         self.train_dataset = AIECPyramidDataset(args.data_root, train_csv, task=args.task, transforms=train_transforms)
         if args.world_size > 1:
-            train_sampler = torch.utils.data.distributed.DistributedSampler(
+            train_sampler = DistributedSampler(
                 self.train_dataset, num_replicas=args.world_size, rank=args.rank, shuffle=True
             )
         else:
@@ -91,6 +91,7 @@ class Trainer:
         
         args.n_classes = self.train_dataset.n_classes
         step_per_epoch = len(self.train_dataset) // (args.batch_size * args.world_size)
+        step_per_epoch = step_per_epoch // args.accumulation if step_per_epoch > 0 else step_per_epoch
 
         self.model = get_model(args).cuda()
         self.optimizer = getattr(torch.optim, args.optimizer)(self.model.parameters(), lr=args.lr,
@@ -101,7 +102,6 @@ class Trainer:
             self.criterion = self.surv2lossfunc[self.args.surv_loss.lower()]().cuda()
         
         self.xview_criterion = CrossViewConsistency(args.batch_size, args.world_size).cuda()
-        self.multiview_criterion = MultiviewCrossEntropyClsLoss().cuda()
         
         if args.scheduler:
             self.scheduler = get_cosine_schedule_with_warmup(self.optimizer, args.warmup_epochs * step_per_epoch, 
@@ -174,13 +174,12 @@ class Trainer:
         # self.save_model()
 
     def train(self, args):
-        torch.cuda.empty_cache()
-        self.model.train()
         cur_iters = 0
-        accumulation_steps = 5  # Number of steps to accumulate gradients
-        self.optimizer.zero_grad()
+        self.model.train()
 
         for i in range(self.args.epochs):
+            if isinstance(self.train_loader.sampler, DistributedSampler):
+                self.train_loader.sampler.set_epoch(i)
             for step, data in enumerate(self.train_loader):
                 data = {k: v.cuda(non_blocking=True) if hasattr(v, 'cuda') else v for k, v in data.items()}
 
@@ -188,11 +187,11 @@ class Trainer:
                 xview_loss = self.xview_criterion(outputs['agents'], data['label'])
                 cls_loss = self.criterion(outputs, data)
                 loss = cls_loss + args.lambda_xview * xview_loss
-                loss = loss / accumulation_steps  # Normalize loss
+                loss = loss / args.accumulation  # Normalize loss
 
                 loss.backward()
 
-                if (step + 1) % accumulation_steps == 0 or (step + 1 == len(self.train_loader)):
+                if (step + 1) % args.accumulation == 0 or (step + 1 == len(self.train_loader)):
                     # Clip gradients after accumulation
                     # torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=5.0)
 
@@ -212,11 +211,11 @@ class Trainer:
                     if self.verbose and args.rank == 0 and cur_iters % self.val_steps == 0:
                         cur_lr = self.optimizer.param_groups[0]['lr']
                         metric_dict = self.validate(args)
-                        print(f"Fold {self.fold} | Epoch {i} | Loss: {loss.item() * accumulation_steps:.4f} | "
+                        print(f"Fold {self.fold} | Epoch {i} | Loss: {loss.item() * args.accumulation:.4f} | "
                             f"Acc: {metric_dict['Accuracy']} | LR: {cur_lr}")
                         if self.wb_logger is not None:
                             self.wb_logger.log({f"Fold_{self.fold}": {
-                                'Train': {'loss': loss.item() * accumulation_steps, 
+                                'Train': {'loss': loss.item() * args.accumulation, 
                                         'cls_loss': cls_loss.item(),
                                         'xview_loss': xview_loss.item(),
                                         'grad_norm': grad_norm,

@@ -496,7 +496,7 @@ class TreeMamba(nn.Module):
 
         x = self.fc1(x)
         agent_features, slide_features = self.forward_features(x) # x: [B, L, V, d]
-        logits= self.head(slide_features)
+        logits = self.head(slide_features)
         y_prob = F.softmax(logits, dim=-1)
 
         return ModelOutputs(features=slide_features, logits=logits, agents=agent_features,
