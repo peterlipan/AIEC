@@ -11,126 +11,182 @@ from torch.nn.parallel import DataParallel
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data.distributed import DistributedSampler
 import torch.nn as nn
-from .metrics import compute_avg_metrics
+from .metrics import compute_avg_metrics, compute_surv_metrics
 from .losses import CrossSampleConsistency, CrossViewConsistency
 
 
 def train(dataloaders, model, criteria, optimizer, scheduler, args, logger):
-
     train_loader, test_loader = dataloaders
     model.train()
     start = time.time()
     xview_criteria = CrossViewConsistency(batch_size=args.batch_size, world_size=args.world_size)
     cur_iter = 0
 
+    accumulation_steps = getattr(args, 'accumulation_steps', 1)
+
     for epoch in range(args.epochs):
         if isinstance(train_loader.sampler, DistributedSampler):
             train_loader.sampler.set_epoch(epoch)
-        for i, (_, img, labels) in enumerate(train_loader):
-            img, labels = img.cuda(non_blocking=True), labels.cuda(non_blocking=True)
-            outputs = model(img)
+        for i, data in enumerate(train_loader):
+            data = {k: v.cuda(non_blocking=True) if hasattr(v, 'cuda') else v for k, v in data.items()}
+            outputs = model(data)
             logits, agent_features = outputs.logits, outputs.agent_features            
 
             # classification loss
-            cls_loss = criteria(logits, labels)
+            cls_loss = criteria(outputs, data)
 
             if agent_features is not None:
-                xview_loss = args.lambda_xview * xview_criteria(agent_features, labels)
+                xview_loss = args.lambda_xview * xview_criteria(agent_features, data['label'])
                 loss = cls_loss + xview_loss
-            
             else:
                 loss = cls_loss
 
-            if args.rank == 0:
-                train_loss = loss.item()
-                cls_loss_value = cls_loss.item()
-                xview_loss_value = xview_loss.item() if agent_features is not None else 0
-                
-            optimizer.zero_grad()
+            # Normalize loss for gradient accumulation
+            loss = loss / accumulation_steps
             loss.backward()
-            optimizer.step()
-            if scheduler is not None:
-                scheduler.step()
+
+            if (i + 1) % accumulation_steps == 0 or (i + 1 == len(train_loader)):
+                optimizer.step()
+                optimizer.zero_grad()
+                if scheduler is not None:
+                    scheduler.step()
 
             if dist.is_available() and dist.is_initialized():
                 loss = loss.data.clone()
                 dist.all_reduce(loss.div_(dist.get_world_size()))
-            
+
             cur_iter += 1
             if args.rank == 0:
-                if cur_iter % 50 == 0:
+                train_loss = loss.item() * accumulation_steps  # unnormalize for logging
+                cls_loss_value = cls_loss.item()
+                xview_loss_value = xview_loss.item() if xview_loss is not None else 0
+
+                if cur_iter % 200 == 0:
                     cur_lr = optimizer.param_groups[0]['lr']
-                    test_acc, test_f1, test_auc, test_ap, test_bac, test_sens, test_spec, test_prec, test_mcc, test_kappa = validate(epoch,
-                        test_loader, model)
+                    test_dict = validate(test_loader, model, criteria, args.task)
                     if logger is not None:
-                        logger.log({'test': {'Accuracy': test_acc,
-                                             'F1 score': test_f1,
-                                             'AUC': test_auc,
-                                             'AP': test_ap,
-                                             'Balanced Accuracy': test_bac,
-                                             'Sensitivity': test_sens,
-                                             'Specificity': test_spec,
-                                             'Precision': test_prec,
-                                             'MCC': test_mcc,
-                                             'Kappa': test_kappa},
+                        logger.log({'test': test_dict,
                                     'train': {'loss': train_loss,
-                                                'cls_loss': cls_loss_value,
-                                                'xview_loss': xview_loss_value,
+                                              'cls_loss': cls_loss_value,
+                                              'xview_loss': xview_loss_value,
                                               'learning_rate': cur_lr}}, )
 
-                    print('\rEpoch: [%2d/%2d] Iter [%4d/%4d] || Time: %4.4f sec || lr: %.6f || Loss: %.4f' % (
+                    print('Epoch: [%2d/%2d] Iter [%4d/%4d] || Time: %4.4f sec || lr: %.6f || Loss: %.4f' % (
                         epoch, args.epochs, i + 1, len(train_loader), time.time() - start,
-                        cur_lr, train_loss), end='', flush=True)
+                        cur_lr, train_loss))
 
-    # validate and save the model
-    if args.rank == 0:
-        test_acc, test_f1, test_auc, test_ap, test_bac, test_sens, test_spec, test_prec, test_mcc, test_kappa = validate(epoch,
-            test_loader, model)
-        if logger is not None:
-            logger.log({'test': {'Accuracy': test_acc,
-                                    'F1 score': test_f1,
-                                    'AUC': test_auc,
-                                    'AP': test_ap,
-                                    'Balanced Accuracy': test_bac,
-                                    'Sensitivity': test_sens,
-                                    'Specificity': test_spec,
-                                    'Precision': test_prec,
-                                    'MCC': test_mcc,
-                                    'Kappa': test_kappa}})
-        print(f"\nFold {args.fold}, Test Accuracy: {test_acc}, Test F1: {test_f1}, Test AUC: {test_auc}, "
-                f"Test BAC: {test_bac}, Test Sensitivity: {test_sens}, Test Specificity: {test_spec}, "
-                f"Test Precision: {test_prec}, Test MCC: {test_mcc}, Test Kappa: {test_kappa}")
+    # # Final validation and model saving
+    # if args.rank == 0:
+    #     test_dict = validate(test_loader, model, criteria)
+    #     if logger is not None:
+    #         logger.log({'test': test_dict})
 
-        model_path = os.path.join(args.checkpoints, f"fold_{args.fold}_acc_{test_acc}.pth")
-        state_dict = model.module.state_dict() if isinstance(model, DataParallel) or isinstance(model,
-                                                                                                DDP) else model.state_dict()
-        torch.save(state_dict, model_path)
+    #     test_acc = test_dict['Accuracy']
+    #     model_path = os.path.join(args.checkpoints, f"fold_{args.fold}_acc_{test_acc}.pth")
+    #     state_dict = model.module.state_dict() if isinstance(model, (DataParallel, DDP)) else model.state_dict()
+    #     torch.save(state_dict, model_path)
 
 
-def validate(epoch, dataloader, model):
+def validate(dataloader, model, criterion, task):
+    training = model.training
+    model.eval()
+    loss = 0.0     
+
+        
+    if task == 'survival':
+        event_indicator = torch.Tensor().cuda() # whether the event (death) has occurred
+        event_time = torch.Tensor().cuda()
+        estimate = torch.Tensor().cuda() 
+    else:
+        ground_truth = torch.Tensor().cuda()
+        probabilities = torch.Tensor().cuda()
+          
+
+    with torch.no_grad():
+        for data in dataloader:
+            data = {k: v.cuda(non_blocking=True) if hasattr(v, 'cuda') else v for k, v in data.items()}
+            outputs = model(data)
+
+            loss += criterion(outputs, data).item()
+                
+            if task == 'survival':
+                risk = -torch.sum(outputs['surv'], dim=1)
+                event_indicator = torch.cat((event_indicator, data['dead']), dim=0)
+                event_time = torch.cat((event_time, data['event_time']), dim=0)
+                estimate = torch.cat((estimate, risk), dim=0)
+            else:
+                
+                prob = outputs.y_prob
+                ground_truth = torch.cat((ground_truth, data['label']), dim=0)
+                probabilities = torch.cat((probabilities, prob), dim=0)
+                        
+        if task == 'survival':
+            metric_dict = compute_surv_metrics(event_indicator, event_time, estimate)
+        else:
+            metric_dict = compute_avg_metrics(ground_truth, probabilities)
+        metric_dict['Loss'] = loss / len(dataloader)
+    
+    model.train(training)
+
+    return metric_dict
+
+
+def fold_univariate_cox_regression_analysis(fold, args, model, dataloader):
+
     training = model.training
     model.eval()
 
-    ground_truth = torch.Tensor().cuda()
-    predictions = torch.Tensor().cuda()
-    wsi_names = []
+    event_indicator = torch.empty(0).cuda()
+    event_time = torch.empty(0).cuda()
+    risk_factor = torch.empty(0).cuda()
+    filename = []
+    patient_id = []
+
+    df_name = f"{args.KFold}Fold_Cox.xlsx"
+    res_path = args.results
+    df_path = os.path.join(res_path, df_name)
+
+    if not os.path.exists(res_path):
+        os.makedirs(res_path)
 
     with torch.no_grad():
-        for name, img, label in dataloader:
-            img, label = img.cuda(non_blocking=True), label.cuda(non_blocking=True).long()
-            outputs = model(img)
-            logits = outputs.logits
-            pred = F.softmax(logits, dim=1)
-            ground_truth = torch.cat((ground_truth, label))
-            predictions = torch.cat((predictions, pred))    
-            wsi_names.extend(name)    
+        for data in dataloader:
+            data = {k: v.cuda(non_blocking=True) if hasattr(v, 'cuda') else v for k, v in data.items()}
+            outputs = model(data)
+            risk = torch.sum(outputs['hazards'], dim=1)
+            event_indicator = torch.cat((event_indicator, data['dead']), dim=0)
+            event_time = torch.cat((event_time, data['event_time']), dim=0)
+            risk_factor = torch.cat((risk_factor, risk), dim=0)
+            filename.extend(data['filename'])
+            patient_id.extend(data['patient_id'])
 
-        acc, f1, auc, ap, bac, sens, spec, prec, mcc, kappa = compute_avg_metrics(ground_truth, predictions, avg='macro')
-        preds = predictions.argmax(dim=1).cpu().detach().tolist()
-        ground_truth = ground_truth.cpu().detach().tolist()
-        write_csv(epoch, wsi_names, preds, ground_truth)
+    event_indicator = event_indicator.cpu().numpy()
+    event_time = event_time.cpu().numpy()
+    risk_factor = risk_factor.cpu().numpy()
+
+    fold_df = pd.DataFrame({
+        'Case.ID': patient_id,
+        'Filename': filename,
+        'Fold': [fold] * len(filename),
+        'event': event_indicator,
+        'duration': event_time,
+        f'{args.backbone}': risk_factor,
+    })
+
+    # If file exists, read and merge (with overwrite for duplicates)
+    if os.path.exists(df_path):
+        existing_df = pd.read_excel(df_path)
+
+        # Concatenate and drop duplicates — keeping latest (new fold) entries
+        combined_df = pd.concat([existing_df, fold_df], ignore_index=True)
+        combined_df.drop_duplicates(subset='Filename', keep='last', inplace=True)
+    else:
+        combined_df = fold_df
+
+    # Save the combined dataframe
+    combined_df.to_excel(df_path, index=False)
+
     model.train(training)
-    return acc, f1, auc, ap, bac, sens, spec, prec, mcc, kappa
 
 
 def train_experts(dataloaders, model, criteria, optimizer, scheduler, args, logger):
@@ -186,20 +242,6 @@ def train_experts(dataloaders, model, criteria, optimizer, scheduler, args, logg
                     print('\rEpoch: [%2d/%2d] Iter [%4d/%4d] || Time: %4.4f sec || lr: %.6f || Loss: %.4f' % (
                         epoch, args.epochs, i + 1, len(train_loader), time.time() - start,
                         cur_lr, train_loss), end='', flush=True)
-
-    # validate and save the model
-    if args.rank == 0:
-        test_performance = valid_experts(epoch, test_loader, model)
-        if logger is not None:
-            logger.log({'test': test_performance})
-        print(f"\nFold {args.fold}, Test Accuracy: {test_acc}, Test F1: {test_f1}, Test AUC: {test_auc}, "
-                f"Test BAC: {test_bac}, Test Sensitivity: {test_sens}, Test Specificity: {test_spec}, "
-                f"Test Precision: {test_prec}, Test MCC: {test_mcc}, Test Kappa: {test_kappa}")
-
-        model_path = os.path.join(args.checkpoints, f"fold_{args.fold}_acc_{test_acc}.pth")
-        state_dict = model.module.state_dict() if isinstance(model, DataParallel) or isinstance(model,
-                                                                                                DDP) else model.state_dict()
-        torch.save(state_dict, model_path)
 
 
 def valid_experts(epoch, dataloader, model):
@@ -267,7 +309,7 @@ def valid_experts(epoch, dataloader, model):
     return return_dict
 
 def write_csv(epoch, names, preds, labels):
-    path = '/mnt/zhen_chen/AIEC/4-MIL/results.csv'
+    path = './results.csv'
     if not os.path.exists(path):
         df = pd.DataFrame({'WSI': names, 'Label': labels, f'Epoch_{epoch}': preds})
     else:

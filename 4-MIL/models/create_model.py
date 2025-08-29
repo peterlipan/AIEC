@@ -25,7 +25,7 @@ def create_model(args):
         model = MambaAgents(d_in=args.feature_dim, d_model=args.d_model, d_state=args.d_state, dropout=args.dropout, n_views=args.n_experts, n_layers=args.num_layers, n_classes=args.num_classes)
     elif args.backbone == 'TreeMamba':
         model = TreeMamba(d_in=args.feature_dim, depths=[args.depth for _ in range(args.num_layers)], dims=[args.d_model for _ in range(args.num_layers)], 
-        d_state=args.d_state, n_views=args.n_experts, n_classes=args.num_classes, drop_rate=args.dropout, 
+        d_state=args.d_state, n_views=args.n_experts, n_classes=args.num_classes, drop_rate=args.dropout, task=args.task,
         )
     else:
         model = None

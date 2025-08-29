@@ -9,9 +9,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.utils.checkpoint as checkpoint
 from einops import rearrange, repeat
-from timm.models.layers import DropPath, to_2tuple, trunc_normal_
+from timm.layers import DropPath, to_2tuple, trunc_normal_
 import random
 import numpy as np
+from einops import rearrange
 try:
     from mamba_ssm.ops.selective_scan_interface import selective_scan_fn, selective_scan_ref
 except:
@@ -398,11 +399,32 @@ class VSSLayer(nn.Module):
         return x
 
 
+class LineaEmbedding(nn.Module):
+    def __init__(self, d_in, d_model, dropout=0.1):
+        super().__init__()
+        self.fc = nn.Linear(d_in, d_model)
+        self.norm = nn.LayerNorm(d_model, eps=1e-6)
+        self.activation = nn.GELU()
+        self.dropout = nn.Dropout(dropout)
+        self.input_norm = nn.BatchNorm1d(d_in)
+
+    def forward(self, x):
+        # x: [B, L, C]
+        x = x.transpose(1, 2)
+        x = self.input_norm(x)
+        x = x.transpose(1, 2)
+        x = self.fc(x)
+        x = self.norm(x)
+        x = self.activation(x)
+        x = self.dropout(x)
+        return x
+
+
 class TreeMamba(nn.Module):
     def __init__(self, d_in=1024, depths=[1], dims=[512], d_state=16, n_views=8, n_classes=4,
                 drop_rate=0.2, attn_drop_rate=0., drop_path_rate=0.6,
                 norm_layer=nn.LayerNorm, patch_norm=True,
-                use_checkpoint=False, **kwargs):
+                use_checkpoint=False, task='subtype', **kwargs):
         super().__init__()
         self.num_layers = len(depths)
         if isinstance(dims, int):
@@ -411,11 +433,14 @@ class TreeMamba(nn.Module):
         self.num_features = dims[-1]
         self.dims = dims
 
-        self.pos_drop = nn.Dropout(p=drop_rate)
+        self.pre_logits_dropout = nn.Dropout(drop_rate)
+
+        self.task = task
+
 
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, sum(depths))]  # stochastic depth decay rule
 
-        self.fc1 = nn.Sequential(nn.Linear(d_in, dims[0]), nn.ReLU())
+        self.fc1 = LineaEmbedding(d_in, dims[0])
 
         self.layers = nn.ModuleList()
         for i_layer in range(self.num_layers):
@@ -472,7 +497,10 @@ class TreeMamba(nn.Module):
         return {'relative_position_bias_table'}
 
     def forward_features(self, x):
-        x = self.pos_drop(x)
+        B, L, V, C = x.shape
+        x = rearrange(x, 'b l v c -> (b v) l c', b=B, v=V)
+        x = self.fc1(x)
+        x = rearrange(x, '(b v) l c -> b l v c', b=B, v=V)
 
         for layer in self.layers:
             x = layer(x)
@@ -488,14 +516,33 @@ class TreeMamba(nn.Module):
         x = rearrange(x, "(b v) d -> b d v", b=B, v=V)
         # gather different tokens
         slide_features = self.maxpool(x).squeeze(-1) # B, d
-
-        return agent_features, slide_features
-
-    def forward(self, x):
-        # x: [B, L, V, C]
-
-        x = self.fc1(x)
-        agent_features, slide_features = self.forward_features(x) # x: [B, L, V, d]
+        # slide_features = self.pre_logits_dropout(slide_features)
         logits= self.head(slide_features)
 
-        return ModelOutputs(features=slide_features, logits=logits, agent_features=agent_features)
+        return agent_features, slide_features, logits
+
+    def cls_forward(self, x):
+        # x: [B, L, V, C]
+        
+        agent_features, slide_features, logits = self.forward_features(x)
+        y_hat = torch.argmax(logits, dim=1)
+        y_prob = F.softmax(logits, dim=1)
+        
+        return ModelOutputs(features=slide_features, logits=logits, agent_features=agent_features,
+                            y_hat=y_hat, y_prob=y_prob)
+    
+    def surv_forward(self, x):
+        # x: [B, L, V, C]
+        
+        agent_features, slide_features, logits = self.forward_features(x)
+        y_hat = torch.argmax(logits, dim=1)
+        hazards = torch.sigmoid(logits)
+        surv = torch.cumprod(1 - hazards, dim=1)
+        return ModelOutputs(features=slide_features, logits=logits, agent_features=agent_features,
+                            hazards=hazards, surv=surv, y_hat=y_hat)
+    
+    def forward(self, x):
+        if self.task == 'survival':
+            return self.surv_forward(x['features'])
+        else:
+            return self.cls_forward(x['features'])

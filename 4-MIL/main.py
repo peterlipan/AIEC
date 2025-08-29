@@ -15,9 +15,9 @@ from torch.nn.parallel import DataParallel
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DataLoader
 from transformers.optimization import get_cosine_schedule_with_warmup
-from utils import yaml_config_hook, train, get_optim, convert_model, train_experts
-from sklearn.model_selection import KFold
-from datasets import AIECPyramidDataset, get_train_transforms, get_test_transforms, experts_train_transforms, experts_test_transforms, CAMELYON16Dataset
+from utils import yaml_config_hook, train, get_optim, convert_model, train_experts, CrossEntropySurvLoss, CrossEntropyClsLoss, fold_univariate_cox_regression_analysis
+from sklearn.model_selection import KFold, StratifiedKFold
+from datasets import AIECPyramidDataset, get_train_transforms, get_test_transforms, CAMELYON16Dataset
 
 
 def main(gpu, args, wandb_logger):
@@ -40,24 +40,48 @@ def main(gpu, args, wandb_logger):
     torch.backends.cudnn.benchmark = False
 
 
-    if 'expert' in args.backbone.lower() or 'agents' in args.backbone.lower() or 'tree' in args.backbone.lower():
-        train_transforms = experts_train_transforms(n_experts=args.n_experts, num_levels=args.num_levels, downsample_factor=args.downsample_factor, 
-        lowest_level=args.lowest_level, dropout=args.tree_dropout, visible_levels=args.visible_levels, fix_agent=args.fix_agent, random_layer=args.random_layer)
-        test_transforms = experts_test_transforms(n_experts=args.n_experts, num_levels=args.num_levels, downsample_factor=args.downsample_factor, lowest_level=args.lowest_level, visible_levels=args.visible_levels)
-    else:
-        train_transforms = get_train_transforms(num_levels=args.num_levels, downsample_factor=args.downsample_factor, lowest_level=args.lowest_level, dropout=args.tree_dropout, visible_levels=args.visible_levels)
-        test_transforms = get_test_transforms(num_levels=args.num_levels, downsample_factor=args.downsample_factor, lowest_level=args.lowest_level, visible_levels=args.visible_levels)
+    train_transforms = get_train_transforms(n_experts=args.n_experts, num_levels=args.num_levels, downsample_factor=args.downsample_factor, 
+                                            lowest_level=args.lowest_level, dropout=args.tree_dropout, visible_levels=args.visible_levels,)
+    test_transforms = get_test_transforms(n_experts=args.n_experts, num_levels=args.num_levels, downsample_factor=args.downsample_factor, 
+                                          lowest_level=args.lowest_level, visible_levels=args.visible_levels)
 
-    kf = KFold(n_splits=args.KFold, shuffle=True, random_state=args.seed)
-    csv = pd.read_csv(args.csv_path) if args.csv_path else None
-    for fold, (train_idx, test_idx) in enumerate(kf.split(csv)):
+
+    kf = StratifiedKFold(n_splits=args.KFold, shuffle=True, random_state=args.seed)
+
+    csv = pd.read_excel(args.overall_csv_path)
+    task2key = {
+        'grade': 'Tumor.Grading',
+        'subtype': 'Tumor.MolecularSubtype',
+        'stage': 'Tumor.Staging',
+        'type': 'Tumor.Type',
+        'survival': 'Overall.Survival.Status(1: DECEASED; 0: LIVING)',
+    }
+    assert args.task in task2key, f"Task {args.task} not supported. Choose from {list(task2key.keys())}."
+    key = task2key[args.task]
+
+    # csv = csv.dropna(subset=[key])
+    # label_list = csv[key].values
+
+    
+    patient_df = csv.dropna(subset=[key])
+    patient_df = patient_df.groupby('Patient.Name').first().reset_index()
+    patient_list = patient_df['Patient.Name'].values
+    patient_lable_list = patient_df[key].values
+    
+    for fold, (train_idx, test_idx) in enumerate(kf.split(patient_df, patient_lable_list)):
         if fold != args.fold:
             continue
+        
+        train_pname = patient_list[train_idx]
+        test_pname = patient_list[test_idx]
+        train_df = patient_df[patient_df['Patient.Name'].isin(train_pname)]
+        test_df = patient_df[patient_df['Patient.Name'].isin(test_pname)]
 
-        train_csv = pd.read_csv(args.train_csv) if args.train_csv else csv.iloc[train_idx]
-        test_csv = pd.read_csv(args.test_csv) if args.test_csv else csv.iloc[test_idx]
+        # train_df = csv.iloc[train_idx].reset_index(drop=True)
+        # test_df = csv.iloc[test_idx].reset_index(drop=True)
 
-        train_dataset = AIECPyramidDataset(args.data_root, train_csv, use_pkl=False, transforms=train_transforms)
+        train_dataset = AIECPyramidDataset(args.data_root, train_df, use_pkl=False, 
+                                           transforms=train_transforms, task=args.task)
         step_per_epoch = len(train_dataset) // (args.batch_size * args.world_size)
 
         # set sampler for parallel training
@@ -79,7 +103,8 @@ def main(gpu, args, wandb_logger):
             pin_memory=True,
         )
         if rank == 0:
-            test_dataset = AIECPyramidDataset(args.data_root, test_csv, use_pkl=False, transforms=test_transforms)
+            test_dataset = AIECPyramidDataset(args.data_root, test_df, use_pkl=False, 
+                                              transforms=test_transforms, task=args.task)
             test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, collate_fn=test_dataset.collate_fn,
             num_workers=args.workers, pin_memory=True)
         else:
@@ -92,12 +117,18 @@ def main(gpu, args, wandb_logger):
         model = model.cuda()
 
         optimizer = get_optim(model, args)
-        criteria = nn.CrossEntropyLoss().cuda()
+        criteria = CrossEntropySurvLoss() if args.task == 'survival' else CrossEntropyClsLoss()
+
+        # Ensure accumulation_steps exists
+        accumulation_steps = getattr(args, 'accumulation_steps', 1)
+
         if args.scheduler:
-            scheduler = get_cosine_schedule_with_warmup(optimizer, args.warmup_epochs * step_per_epoch, args.epochs * step_per_epoch)
+            total_steps = (args.epochs * step_per_epoch) // accumulation_steps
+            warmup_steps = (args.warmup_epochs * step_per_epoch) // accumulation_steps
+            scheduler = get_cosine_schedule_with_warmup(optimizer, warmup_steps, total_steps)
         else:
             scheduler = None
-            
+
         if args.dataparallel:
             model = convert_model(model)
             model = DataParallel(model, device_ids=[int(x) for x in args.visible_gpus.split(",")])
@@ -106,10 +137,11 @@ def main(gpu, args, wandb_logger):
             if args.world_size > 1:
                 model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
                 model = DDP(model, device_ids=[gpu])
-        if 'expert' in args.backbone.lower():
-            train_experts(loaders, model, criteria, optimizer, scheduler, args, wandb_logger)
-        else:
-            train(loaders, model, criteria, optimizer, scheduler, args, wandb_logger)
+
+        train(loaders, model, criteria, optimizer, scheduler, args, wandb_logger)
+        if args.task == 'survival' and rank == 0:
+            fold_univariate_cox_regression_analysis(fold, args, model, test_loader)
+
 
 
 if __name__ == '__main__':
@@ -129,7 +161,7 @@ if __name__ == '__main__':
     # Master address for distributed data parallel
     os.environ["CUDA_VISIBLE_DEVICES"] = args.visible_gpus
     os.environ['MASTER_ADDR'] = 'localhost'
-    os.environ['MASTER_PORT'] = '12344'
+    os.environ['MASTER_PORT'] = '12345'
 
     # check checkpoints path
     if not os.path.exists(args.checkpoints):

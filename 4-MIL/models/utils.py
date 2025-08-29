@@ -35,31 +35,22 @@ class Aggregator(nn.Module):
         return x
 
 
-@dataclass
-class ModelOutputs(ModelOutput):
-    """
-    Base class for outputs of image classification models.
+class ModelOutputs:
+    def __init__(self, features=None, logits=None, **kwargs):
+        self.dict = {'features': features, 'logits': logits}
+        self.dict.update(kwargs)
+    
+    def __getitem__(self, key):
+        return self.dict[key]
 
-    Args:
-        features (`torch.FloatTensor` of shape `(batch_size, num_features)`):
-            The last feature map (after the encoder).
-        logits (`torch.FloatTensor` of shape `(batch_size, config.num_labels)`):
-            Classification (or regression if config.num_labels==1) scores (before SoftMax).
-        hidden_states (`tuple(torch.FloatTensor)`, *optional*, returned when `output_hidden_states=True` is passed or when `config.output_hidden_states=True`):
-            Tuple of `torch.FloatTensor` (one for the output of the embeddings, if the model has an embedding layer, +
-            one for the output of each stage) of shape `(batch_size, sequence_length, hidden_size)`. Hidden-states
-            (also called feature maps) of the model at the output of each stage.
-        attentions (`tuple(torch.FloatTensor)`, *optional*, returned when `output_attentions=True` is passed or when `config.output_attentions=True`):
-            Tuple of `torch.FloatTensor` (one for each layer) of shape `(batch_size, num_heads, patch_size,
-            sequence_length)`.
+    def __setitem__(self, key, value):
+        self.dict[key] = value
+    
+    def __str__(self):
+        return str(self.dict)
 
-            Attentions weights after the attention softmax, used to compute the weighted average in the self-attention
-            heads.
-    """
-    features: torch.FloatTensor = None
-    logits: torch.FloatTensor = None
-    moe_features: torch.FloatTensor = None
-    agent_features: torch.FloatTensor = None
-    moe_logits: torch.FloatTensor = None
-    hidden_states: Optional[Tuple[torch.FloatTensor, ...]] = None
-    attentions: Optional[Tuple[torch.FloatTensor, ...]] = None
+    def __repr__(self):
+        return str(self.dict)
+
+    def __getattr__(self, key):
+        return self.dict[key]
